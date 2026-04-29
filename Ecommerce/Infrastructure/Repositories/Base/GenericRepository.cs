@@ -1,11 +1,12 @@
-using Infrastructure.Data;
 using Application.Interfaces.Repositories.Base;
+using Domain.Common;
+using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
 namespace Infrastructure.Repositories.Base
 {
-    public class GenericRepository<T> : IGenericRepository<T> where T : class
+    public class GenericRepository<T> : IGenericRepository<T> where T : BaseEntity
     {
         protected readonly EcommerceContext _context;
 
@@ -144,47 +145,6 @@ namespace Infrastructure.Repositories.Base
             _context.Set<T>().Update(entity);
         }
 
-        public void Remove(T entity)
-        {
-            _context.Set<T>().Remove(entity);
-        }
-
-        public async Task<int> DeleteRangeAsync(Expression<Func<T, bool>> predicate)
-        {
-            return await _context.Set<T>()
-                .Where(predicate)
-                .ExecuteDeleteAsync();
-        }
-
-        public async Task<int> DeleteInBatchesAsync(Expression<Func<T, bool>> predicate, Expression<Func<T, DateTime>> orderBy, Expression<Func<T, Guid>> keySelector, int batchSize = 100)
-        {
-            int totalDeleted = 0;
-
-            while (true)
-            {
-                var ids = await _context.Set<T>()
-                    .Where(predicate)
-                    .OrderBy(orderBy)
-                    .Select(keySelector)
-                    .Take(batchSize)
-                    .ToListAsync();
-
-                if (!ids.Any()) break;
-
-                var deleted = await _context.Set<T>()
-                    .Where(BuildContainsExpression(keySelector, ids))
-                    .ExecuteDeleteAsync();
-
-                totalDeleted += deleted;
-
-                if (deleted < batchSize) break;
-
-                await Task.Delay(50);
-            }
-
-            return totalDeleted;
-        }
-
         public IQueryable<T> GetQueryable()
         {
             return _context.Set<T>().AsQueryable();
@@ -195,18 +155,5 @@ namespace Infrastructure.Repositories.Base
             return await _context.Set<T>().CountAsync(predicate);
         }
 
-        private static Expression<Func<T, bool>> BuildContainsExpression(Expression<Func<T, Guid>> keySelector, List<Guid> ids)
-        {
-            var param = keySelector.Parameters[0];
-
-            var body = Expression.Call(
-                typeof(Enumerable),
-                nameof(Enumerable.Contains),
-                new[] { typeof(Guid) },
-                Expression.Constant(ids),
-                keySelector.Body);
-
-            return Expression.Lambda<Func<T, bool>>(body, param);
-        }
     }
 }

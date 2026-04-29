@@ -1,4 +1,4 @@
-﻿namespace API.Common.Responses
+﻿namespace Presentation.Common.Responses
 {
     public class ApiResponse<T>
     {

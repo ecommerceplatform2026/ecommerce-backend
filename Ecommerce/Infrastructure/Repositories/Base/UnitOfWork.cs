@@ -1,6 +1,6 @@
-using Infrastructure.Data;
-using Application.Interfaces.Repositories;
 using Application.Interfaces.Repositories.Base;
+using Domain.Common;
+using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace Infrastructure.Repositories.Base
@@ -14,7 +14,7 @@ namespace Infrastructure.Repositories.Base
         {
             _context = context;
         }
-        public IGenericRepository<T> GetRepository<T>() where T : class
+        public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
             var type = typeof(T);
 

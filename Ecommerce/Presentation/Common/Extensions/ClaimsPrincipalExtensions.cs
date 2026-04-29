@@ -1,7 +1,7 @@
 ﻿using Application.Common.Response;
 using System.Security.Claims;
 
-namespace API.Common.Extensions
+namespace Presentation.Common.Extensions
 {
     public static class ClaimsPrincipalExtensions
     {

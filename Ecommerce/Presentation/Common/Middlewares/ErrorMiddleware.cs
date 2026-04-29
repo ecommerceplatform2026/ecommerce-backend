@@ -1,5 +1,7 @@
-﻿using API.Common.Responses;
+﻿using Presentation.Common.Responses;
 using System.Text.Json;
+
+namespace Presentation.Common.Middlewares;
 
 public class ErrorMiddleware
 {

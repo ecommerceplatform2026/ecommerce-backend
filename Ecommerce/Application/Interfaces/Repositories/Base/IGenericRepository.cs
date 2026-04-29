@@ -1,8 +1,9 @@
-﻿using System.Linq.Expressions;
+﻿using Domain.Common;
+using System.Linq.Expressions;
 
 namespace Application.Interfaces.Repositories.Base
 {
-    public interface IGenericRepository<T> where T : class
+    public interface IGenericRepository<T> where T : BaseEntity
     {
         Task<T?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes);
 
@@ -24,12 +25,6 @@ namespace Application.Interfaces.Repositories.Base
         Task AddAsync(T entity, CancellationToken cancellationToken = default);
 
         void Update(T entity);
-
-        void Remove(T entity);
-
-        Task<int> DeleteRangeAsync(Expression<Func<T, bool>> predicate);
-
-        Task<int> DeleteInBatchesAsync(Expression<Func<T, bool>> predicate, Expression<Func<T, DateTime>> orderBy, Expression<Func<T, Guid>> keySelector, int batchSize = 100);
 
         IQueryable<T> GetQueryable();
 

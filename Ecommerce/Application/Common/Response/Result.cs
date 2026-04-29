@@ -1,31 +1,45 @@
-﻿using System.Text.Json.Serialization;
+﻿using Application.Common.Enum;
+using System.Text.Json.Serialization;
 
 namespace Application.Common.Response
 {
     public class Result<T>
     {
         public bool IsSuccess { get; }
-        public List<string> Errors { get; }
-        public T Value { get; }
 
-        [JsonConstructor]
-        private Result(bool isSuccess, T value, List<string> errors)
+        public T? Value { get; }
+
+        public List<string> Errors { get; }
+
+        public ErrorType ErrorType { get; }
+
+        private Result(bool isSuccess, T? value, List<string> errors, ErrorType errorType)
         {
             IsSuccess = isSuccess;
             Value = value;
-            Errors = errors ?? new List<string>();
+            Errors = errors;
+            ErrorType = errorType;
         }
 
         public static Result<T> Success(T value)
-            => new(true, value, new List<string>());
+            => new(true, value, new List<string>(), ErrorType.None);
 
-        public static Result<T> Failure(params string[] errors)
-        {
-            if (errors == null || errors.Length == 0)
-                throw new ArgumentException("Errors cannot be empty");
+        public static Result<T> Failure(string error)
+            => new(false, default, new List<string> { error }, ErrorType.Validation);
 
-            return new(false, default!, errors.ToList());
-        }
+        public static Result<T> Failure(List<string> errors)
+            => new(false, default, errors, ErrorType.Validation);
 
+        public static Result<T> Unauthorized(string error)
+            => new(false, default, new List<string> { error }, ErrorType.Unauthorized);
+
+        public static Result<T> Forbidden(string error)
+            => new(false, default, new List<string> { error }, ErrorType.Forbidden);
+
+        public static Result<T> NotFound(string error)
+            => new(false, default, new List<string> { error }, ErrorType.NotFound);
+
+        public static Result<T> Conflict(string error)
+            => new(false, default, new List<string> { error }, ErrorType.Conflict);
     }
 }
