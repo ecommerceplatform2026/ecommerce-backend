@@ -20,17 +20,18 @@ builder.Services
     .Bind(builder.Configuration.GetSection("JwtSettings"))
     .Validate(settings =>
         !string.IsNullOrWhiteSpace(settings.Secret) &&
+        settings.Secret.Length >= 32 &&
         !string.IsNullOrWhiteSpace(settings.Issuer) &&
         !string.IsNullOrWhiteSpace(settings.Audience) &&
         settings.ExpirationHours > 0,
-        "JwtSettings must include Secret, Issuer, Audience, and ExpirationHours > 0.")
+        "JwtSettings must include Secret with at least 32 characters, Issuer, Audience, and ExpirationHours > 0.")
     .ValidateOnStart();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 
-builder.Services.AddAuthentication("Bearer")
-    .AddJwtBearer("Bearer", option =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(option =>
     {
         option.TokenValidationParameters = new TokenValidationParameters
         {
@@ -51,11 +52,11 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SchemaFilter<EnumSchemaFilter>();
 
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
     {
         Name = "Authorization",
         Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
+        Scheme = JwtBearerDefaults.AuthenticationScheme.ToLower(),
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
         Description = "Nhập token dạng: Bearer {token}"
@@ -68,10 +69,10 @@ builder.Services.AddSwaggerGen(options =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
+                    Id = JwtBearerDefaults.AuthenticationScheme
                 }
             },
-            new string [] { }
+            Array.Empty<string>()
         }
     });
 });

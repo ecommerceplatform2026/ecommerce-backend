@@ -72,7 +72,7 @@ namespace Application.Services
 
             var user = await userRepository.FindAsync(
                 u => u.Email == normalizedEmail,
-                false,
+                true,
                 cancellationToken);
 
             if (user == null || !_passwordHasher.Verify(request.Password, user.PasswordHash))
