@@ -22,5 +22,18 @@ namespace Domain.Entities
         public virtual ICollection<UserAddress> UserAddresses { get; set; } = new List<UserAddress>();
         public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+
+        public static User Create(string fullName, string email, string passwordHash)
+        {
+            return new User
+            {
+                FullName = fullName,
+                Email = email,
+                PasswordHash = passwordHash,
+                Role = UserRole.User,
+                Status = UserStatus.Active,
+                EmailConfirmed = false
+            };
+        }
     }
 }

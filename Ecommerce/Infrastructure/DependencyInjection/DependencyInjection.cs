@@ -3,6 +3,7 @@ using Application.Interfaces.Services;
 using Infrastructure.Services;
 using Application.Interfaces.Repositories;
 using Application.Interfaces.Repositories.Base;
+using Application.Interfaces.Security;
 using Infrastructure.Repositories.Base;
 
 namespace Infrastructure.DependencyInjection
@@ -16,6 +17,10 @@ namespace Infrastructure.DependencyInjection
 
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+            services.AddScoped<IJwtService, JwtService>();
+            services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
+            services.AddScoped<IUniqueConstraintChecker, PostgresUniqueConstraintChecker>();
 
             return services;
         }
