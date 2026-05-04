@@ -35,7 +35,7 @@ namespace Application.Services
         {
             var userRepository = _unitOfWork.GetRepository<User>();
 
-            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            var normalizedEmail = User.NormalizeEmail(request.Email);
             var existingUser = await userRepository.FindAsync(
                 u => u.Email == normalizedEmail,
                 true,
@@ -47,7 +47,7 @@ namespace Application.Services
             }
 
             var passwordHash = _passwordHasher.Hash(request.Password);
-            var user = User.Create(request.FullName.Trim(), normalizedEmail, passwordHash);
+            var user = User.Create(request.FullName, normalizedEmail, passwordHash);
 
             await userRepository.AddAsync(user, cancellationToken);
 
@@ -68,7 +68,7 @@ namespace Application.Services
             CancellationToken cancellationToken = default)
         {
             var userRepository = _unitOfWork.GetRepository<User>();
-            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            var normalizedEmail = User.NormalizeEmail(request.Email);
 
             var user = await userRepository.FindAsync(
                 u => u.Email == normalizedEmail,
