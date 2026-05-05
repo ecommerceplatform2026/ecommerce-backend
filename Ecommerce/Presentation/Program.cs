@@ -3,17 +3,38 @@ using Application.DependencyInjection;
 using Infrastructure.Data;
 using Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Presentation.Common.Filters;
 using Presentation.Common.Middlewares;
+using Presentation.Common.Responses;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState.Values
+            .SelectMany(v => v.Errors)
+            .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage) ? "Invalid request." : error.ErrorMessage)
+            .ToList();
+
+        var response = new ApiResponse<object>
+        {
+            Success = false,
+            Data = null,
+            Errors = errors.Count > 0 ? errors : new List<string> { "Invalid request." }
+        };
+
+        return new BadRequestObjectResult(response);
+    };
+});
 
 builder.Services
     .AddOptions<JwtSettings>()
