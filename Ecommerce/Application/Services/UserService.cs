@@ -50,8 +50,6 @@ namespace Application.Services
                 request.PhoneNumber,
                 request.DateOfBirth);
 
-            var userRepository = _unitOfWork.GetRepository<User>();
-            userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<UserResponse>.Success(user.ToUserResponse());

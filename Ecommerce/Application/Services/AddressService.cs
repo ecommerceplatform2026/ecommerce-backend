@@ -12,60 +12,55 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IUserService _userService;
+        private readonly ICurrentUserService _currentUserService;
 
-        public AddressService(IUnitOfWork unitOfWork, IUserService userService)
+        public AddressService(IUnitOfWork unitOfWork, IUserService userService, ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork;
             _userService = userService;
+            _currentUserService = currentUserService;
         }
 
         public async Task<Result<List<AddressResponse>>> GetAddressesAsync(
             CancellationToken cancellationToken = default)
         {
-            var currentUserResult = await _userService.GetCurrentUserWithAddressesAsync(cancellationToken);
-            if (!currentUserResult.IsSuccess)
-            {
-                return ResultMapper.MapUserError<List<AddressResponse>>(currentUserResult);
-            }
+            var currentUserId = _currentUserService.GetUserIdOrNull();
 
-            var user = currentUserResult.Value!;
-            var addressRepository = _unitOfWork.GetRepository<UserAddress>();
-            var addresses = await addressRepository
+            if (!Guid.TryParse(currentUserId, out var userId))
+                return Result<List<AddressResponse>>.Unauthorized("Unauthorized.");
+
+            var addresses = await _unitOfWork
+                .GetRepository<UserAddress>()
                 .GetQueryable()
-                .Where(address => address.UserId == user.Id)
+                .AsNoTracking()
+                .Where(address => address.UserId == userId)
                 .OrderByDescending(address => address.IsDefault)
                 .ThenByDescending(address => address.CreatedAt)
+                .Select(address => address.ToAddressResponse())
                 .ToListAsync(cancellationToken);
 
-            var responses = addresses
-                .Select(address => address.ToAddressResponse())
-                .ToList();
-
-            return Result<List<AddressResponse>>.Success(responses);
+            return Result<List<AddressResponse>>.Success(addresses);
         }
 
         public async Task<Result<AddressResponse>> GetAddressByIdAsync(
             Guid addressId,
             CancellationToken cancellationToken = default)
         {
-            var currentUserResult = await _userService.GetCurrentUserWithAddressesAsync(cancellationToken);
-            if (!currentUserResult.IsSuccess)
-            {
-                return ResultMapper.MapUserError<AddressResponse>(currentUserResult);
-            }
+            var currentUserId = _currentUserService.GetUserIdOrNull();
 
-            var user = currentUserResult.Value!;
+            if (!Guid.TryParse(currentUserId, out var userId))
+                return Result<AddressResponse>.Unauthorized("Unauthorized.");
+
             var addressRepository = _unitOfWork.GetRepository<UserAddress>();
             var address = await addressRepository
                 .GetQueryable()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    item => item.Id == addressId && item.UserId == user.Id,
+                    item => item.Id == addressId && item.UserId == userId,
                     cancellationToken);
 
             if (address == null)
-            {
                 return Result<AddressResponse>.NotFound("Address not found.");
-            }
 
             return Result<AddressResponse>.Success(address.ToAddressResponse());
         }
@@ -90,8 +85,6 @@ namespace Application.Services
                 request.Province,
                 request.IsDefault);
 
-            var userRepository = _unitOfWork.GetRepository<User>();
-            userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<AddressResponse>.Success(address.ToAddressResponse());
@@ -124,8 +117,6 @@ namespace Application.Services
                 return Result<AddressResponse>.NotFound("Address not found.");
             }
 
-            var userRepository = _unitOfWork.GetRepository<User>();
-            userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<AddressResponse>.Success(address.ToAddressResponse());
@@ -143,13 +134,11 @@ namespace Application.Services
 
             var user = currentUserResult.Value!;
             var address = user.DeleteAddress(addressId, user.Id.ToString());
-            if (address == null)
+            if (address is null)
             {
                 return Result<bool>.NotFound("Address not found.");
             }
 
-            var userRepository = _unitOfWork.GetRepository<User>();
-            userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<bool>.Success(true);

@@ -67,16 +67,12 @@ namespace Domain.Entities
             SetDeleted(deletedBy);
         }
 
-        private static string NormalizeRequired(string value)
+        private static string NormalizeRequired(string? value)
         {
-            var normalizedValue = value.Trim();
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Value cannot be null, empty, or whitespace.", nameof(value));
 
-            if (string.IsNullOrWhiteSpace(normalizedValue))
-            {
-                throw new ArgumentException("Value cannot be empty or whitespace.", nameof(value));
-            }
-
-            return normalizedValue;
+            return value.Trim();
         }
 
         private static string? NormalizeOptional(string? value)
