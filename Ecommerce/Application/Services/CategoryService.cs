@@ -24,10 +24,9 @@ namespace Application.Services
 
         public async Task<Result<CategoryResponse>> CreateCategoryAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(request.Name))
+            var name = request.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
                 return Result<CategoryResponse>.Failure("Category name is required.");
-
-            var name = request.Name.Trim();
 
             var categoryRepository = _unitOfWork.GetRepository<Category>();
 
@@ -45,16 +44,15 @@ namespace Application.Services
 
         public async Task<Result<CategoryResponse>> UpdateCategoryAsync(Guid categoryId, UpdateCategoryRequest request, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(request.Name))
+            var name = request.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
                 return Result<CategoryResponse>.Failure("Category name is required.");
 
             var categoryRepository = _unitOfWork.GetRepository<Category>();
 
-            var category = await categoryRepository.FindAsync(category => category.Id == categoryId && !category.IsDeleted, cancellationToken: cancellationToken);
+            var category = await categoryRepository.FindAsync(category => category.Id == categoryId && !category.IsDeleted, asNoTracking: false, cancellationToken: cancellationToken);
             if (category is null)
                 return Result<CategoryResponse>.NotFound("Category not found.");
-
-            var name = request.Name.Trim();
 
             var nameExists = await categoryRepository.FindAsync(item => item.Id != categoryId && !item.IsDeleted && item.Name.ToLowerInvariant() == name.ToLowerInvariant(), cancellationToken: cancellationToken);
             if (nameExists is not null)
@@ -70,7 +68,7 @@ namespace Application.Services
         {
             var categoryRepository = _unitOfWork.GetRepository<Category>();
 
-            var category = await categoryRepository.FindAsync(category => category.Id == categoryId && !category.IsDeleted, cancellationToken: cancellationToken);
+            var category = await categoryRepository.FindAsync(category => category.Id == categoryId && !category.IsDeleted, asNoTracking: false, cancellationToken: cancellationToken);
             if (category is null)
                 return Result<bool>.NotFound("Category not found.");
 
@@ -78,8 +76,8 @@ namespace Application.Services
             if (activeProduct is not null)
                 return Result<bool>.Failure("Cannot delete category because it contains active products.");
 
-            category.Delete();
-
+            category.Deactivate();
+            categoryRepository.Remove(category);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<bool>.Success(true);

@@ -29,5 +29,7 @@ namespace Application.Interfaces.Repositories.Base
         IQueryable<T> GetQueryable();
 
         Task<int> TotalAsync(Expression<Func<T, bool>> predicate);
+
+        void Remove(T entity);
     }
 }

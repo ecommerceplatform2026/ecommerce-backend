@@ -155,5 +155,9 @@ namespace Infrastructure.Repositories.Base
             return await _context.Set<T>().CountAsync(predicate);
         }
 
+        public void Remove(T entity)
+        {
+            _context.Remove(entity);
+        }
     }
 }

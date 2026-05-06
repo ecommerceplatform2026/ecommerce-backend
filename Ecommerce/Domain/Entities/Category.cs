@@ -21,7 +21,7 @@ namespace Domain.Entities
 
         public void Update(string name) => Name = NormalizeRequired(name);
 
-        public void Delete() => Status = CategoryStatus.Inactive;
+        public void Deactivate() => Status = CategoryStatus.Inactive;
 
         private static string NormalizeRequired(string value)
         {
