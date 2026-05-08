@@ -1,16 +1,34 @@
 using Domain.Common;
 using Domain.Enums;
-using System.Collections.Generic;
 
 namespace Domain.Entities
 {
     public class Category : BaseEntity
     {
         public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public string? ImageUrl { get; set; }
         public CategoryStatus Status { get; set; }
 
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+
+        private Category(){ }
+
+        private Category(string name)
+        {
+            Name = NormalizeRequired(name);
+            Status = CategoryStatus.Active;
+        }
+        public static Category Create(string name) => new Category(name);
+
+        public void Update(string name) => Name = NormalizeRequired(name);
+
+        public void Deactivate() => Status = CategoryStatus.Inactive;
+
+        private static string NormalizeRequired(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException("Value cannot be null, empty, or whitespace.", nameof(value));
+
+            return value.Trim();
+        }
     }
 }
