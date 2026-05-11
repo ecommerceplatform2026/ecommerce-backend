@@ -21,11 +21,11 @@ namespace Domain.Entities
 
         private Product(Guid categoryId, string name, string? description, string? material, long basePrice, ProductStatus status)
         {
-            CategoryId = categoryId;
+            CategoryId = EnsureNotEmpty(categoryId);
             Name = NormalizeRequired(name);
             Description = description;
             Material = material;
-            BasePrice = basePrice;
+            BasePrice = EnsureNonNegative(basePrice);
             Status = status;
         }
 
@@ -36,11 +36,11 @@ namespace Domain.Entities
 
         public void Update(Guid categoryId, string name, string? description, string? material, long basePrice, ProductStatus status)
         {
-            CategoryId = categoryId;
+            CategoryId = EnsureNotEmpty(categoryId);
             Name = NormalizeRequired(name);
             Description = description;
             Material = material;
-            BasePrice = basePrice;
+            BasePrice = EnsureNonNegative(basePrice);
             Status = status;
         }
 
@@ -52,6 +52,20 @@ namespace Domain.Entities
                 throw new ArgumentException("Value cannot be null, empty, or whitespace.", nameof(value));
 
             return value.Trim();
+        }
+
+        private static long EnsureNonNegative(long price)
+        {
+            if (price < 0)
+                throw new ArgumentException("Base price must be non-negative.", nameof(price));
+            return price;
+        }
+
+        private static Guid EnsureNotEmpty(Guid guid)
+        {
+            if (guid == Guid.Empty)
+                throw new ArgumentException("GUID cannot be empty.", nameof(guid));
+            return guid;
         }
     }
 }

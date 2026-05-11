@@ -43,7 +43,7 @@ namespace Application.Services
         {
             var category = await _unitOfWork.GetRepository<Category>().FindAsync(c => c.Id == createProductRequest.CategoryId && !c.IsDeleted, cancellationToken: cancellationToken);
             if (category == null)
-                return Result<ProductResponse>.Failure("Category not found.");
+                return Result<ProductResponse>.NotFound("Category not found.");
 
             var product = createProductRequest.ToEntity();
             
@@ -65,7 +65,7 @@ namespace Application.Services
             {
                 var category = await _unitOfWork.GetRepository<Category>().FindAsync(c => c.Id == updateProductRequest.CategoryId && !c.IsDeleted, cancellationToken: cancellationToken);
                 if (category == null)
-                    return Result<ProductResponse>.Failure("Category not found.");
+                    return Result<ProductResponse>.NotFound("Category not found.");
             }
 
             updateProductRequest.MapToEntity(product);
