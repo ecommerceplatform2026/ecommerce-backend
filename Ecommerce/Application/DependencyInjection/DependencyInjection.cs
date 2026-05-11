@@ -12,6 +12,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IAddressService, AddressService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<ICategoryService, CategoryService>();
+            services.AddScoped<IProductService, ProductService>();
 
             return services;
         }
