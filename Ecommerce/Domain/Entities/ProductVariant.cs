@@ -1,6 +1,4 @@
 using Domain.Common;
-using System;
-using System.Collections.Generic;
 
 namespace Domain.Entities
 {
@@ -13,7 +11,7 @@ namespace Domain.Entities
         public int Stock { get; set; }
         public long Price { get; set; }
 
-        public Product? Product { get; set; }
+        public Product Product { get; set; } = null!;
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
     }
