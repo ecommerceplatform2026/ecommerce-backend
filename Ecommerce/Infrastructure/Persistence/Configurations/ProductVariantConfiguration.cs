@@ -13,7 +13,12 @@ namespace Infrastructure.Persistence.Configurations
             builder.Property(pv => pv.Color).HasMaxLength(50);
             builder.Property(pv => pv.Size).HasMaxLength(20);
             builder.Property(pv => pv.Stock).IsRequired();
+            builder.Property(pv => pv.LowStockThreshold).IsRequired().HasDefaultValue(5);
             builder.Property(pv => pv.Price).IsRequired();
+
+            builder.HasIndex(pv => pv.SKU)
+                   .IsUnique()
+                   .HasFilter("\"IsDeleted\" = false");
 
             builder.HasOne(pv => pv.Product)
                    .WithMany(p => p.ProductVariants)
