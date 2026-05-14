@@ -48,6 +48,8 @@ namespace Domain.Entities
 
         public void AddVariant(string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
         {
+            sku = NormalizeRequired(sku);
+
             if (ProductVariants.Any(v => v.SKU.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
                 throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
 
@@ -57,6 +59,8 @@ namespace Domain.Entities
 
         public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
         {
+            sku = NormalizeRequired(sku);
+
             var variant = ProductVariants.FirstOrDefault(v => v.Id == variantId && !v.IsDeleted);
             if (variant == null)
                 throw new KeyNotFoundException("Variant not found.");

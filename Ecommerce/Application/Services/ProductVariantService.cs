@@ -67,24 +67,29 @@ namespace Application.Services
             if (product == null)
                 return Result<ProductVariantResponse>.NotFound("Product not found.");
 
+            var normalizedSku = request.SKU?.Trim() ?? string.Empty;
             var skuExists = await _unitOfWork.GetRepository<ProductVariant>().GetQueryable().AnyAsync(
-                v => v.SKU.ToLower() == request.SKU.ToLower() && !v.IsDeleted,
+                v => v.SKU.ToLower() == normalizedSku.ToLower() && !v.IsDeleted,
                 cancellationToken);
 
             if (skuExists)
-                return Result<ProductVariantResponse>.Failure($"SKU '{request.SKU}' is already in use by another product.");
+                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use by another product.");
 
             try
             {
-                product.AddVariant(request.SKU, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
+                product.AddVariant(normalizedSku, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-                var newVariant = product.ProductVariants.First(v => v.SKU == request.SKU && !v.IsDeleted);
+                var newVariant = product.ProductVariants.First(v => v.SKU.Equals(normalizedSku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted);
                 return Result<ProductVariantResponse>.Success(newVariant.ToProductVariantResponse());
             }
             catch (InvalidOperationException ex)
             {
                 return Result<ProductVariantResponse>.Failure(ex.Message);
+            }
+            catch (DbUpdateException)
+            {
+                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use.");
             }
         }
 
@@ -99,16 +104,17 @@ namespace Application.Services
             if (product == null)
                 return Result<ProductVariantResponse>.NotFound("Product not found.");
 
+            var normalizedSku = request.SKU?.Trim() ?? string.Empty;
             var skuExists = await _unitOfWork.GetRepository<ProductVariant>().GetQueryable().AnyAsync(
-                v => v.Id != variantId && v.SKU.ToLower() == request.SKU.ToLower() && !v.IsDeleted,
+                v => v.Id != variantId && v.SKU.ToLower() == normalizedSku.ToLower() && !v.IsDeleted,
                 cancellationToken);
 
             if (skuExists)
-                return Result<ProductVariantResponse>.Failure($"SKU '{request.SKU}' is already in use by another product.");
+                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use by another product.");
 
             try
             {
-                product.UpdateVariant(variantId, request.SKU, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
+                product.UpdateVariant(variantId, normalizedSku, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 var updatedVariant = product.ProductVariants.First(v => v.Id == variantId);
@@ -121,6 +127,10 @@ namespace Application.Services
             catch (InvalidOperationException ex)
             {
                 return Result<ProductVariantResponse>.Failure(ex.Message);
+            }
+            catch (DbUpdateException)
+            {
+                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use.");
             }
         }
 
@@ -145,9 +155,13 @@ namespace Application.Services
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 return Result<bool>.Success(true);
             }
-            catch (Exception ex)
+            catch (ArgumentException ex)
             {
                 return Result<bool>.Failure(ex.Message);
+            }
+            catch (Exception)
+            {
+                return Result<bool>.Failure("An unexpected error occurred while updating the stock.");
             }
         }
 

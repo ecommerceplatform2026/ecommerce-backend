@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,12 +10,12 @@ namespace Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
+            migrationBuilder.AddColumn<long>(
                 name: "LowStockThreshold",
                 table: "ProductVariants",
-                type: "integer",
+                type: "bigint",
                 nullable: false,
-                defaultValue: 5);
+                defaultValue: 5L);
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProductVariants_SKU",

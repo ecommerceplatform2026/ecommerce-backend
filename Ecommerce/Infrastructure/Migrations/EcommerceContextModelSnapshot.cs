@@ -397,10 +397,10 @@ namespace Infrastructure.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("LowStockThreshold")
+                    b.Property<long>("LowStockThreshold")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(5);
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(5L);
 
                     b.Property<long>("Price")
                         .HasColumnType("bigint");
@@ -417,8 +417,8 @@ namespace Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<int>("Stock")
-                        .HasColumnType("integer");
+                    b.Property<long>("Stock")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
