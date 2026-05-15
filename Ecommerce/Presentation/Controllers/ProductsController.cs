@@ -27,9 +27,9 @@ namespace Presentation.Controllers
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAllProducts(CancellationToken cancellationToken)
+        public async Task<IActionResult> GetProducts([FromQuery] ProductListingRequest request, CancellationToken cancellationToken)
         {
-            var result = await _productService.GetAllProductsAsync(cancellationToken);
+            var result = await _productService.GetProductsAsync(request, cancellationToken);
             return this.FromResult(result);
         }
 
