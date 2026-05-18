@@ -48,6 +48,10 @@ builder.Services
         "JwtSettings must include Secret with at least 32 characters, Issuer, Audience, and ExpirationHours > 0.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<CloudinarySettings>()
+    .Bind(builder.Configuration.GetSection("CloudinarySettings"));
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 

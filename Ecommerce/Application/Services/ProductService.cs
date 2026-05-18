@@ -11,11 +11,22 @@ namespace Application.Services
 {
     public sealed class ProductService : IProductService
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private const long MaxImageSize = 10 * 1024 * 1024;
+        private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+        };
 
-        public ProductService(IUnitOfWork unitOfWork)
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IProductImageStorage _productImageStorage;
+
+        public ProductService(IUnitOfWork unitOfWork, IProductImageStorage productImageStorage)
         {
             _unitOfWork = unitOfWork;
+            _productImageStorage = productImageStorage;
         }
 
         public async Task<Result<ProductResponse>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -204,6 +215,89 @@ namespace Application.Services
             return Result<bool>.Success(true);
         }
 
+        public async Task<Result<ProductImageResponse>> UploadProductImageAsync(
+            Guid productId,
+            Stream imageStream,
+            string fileName,
+            string contentType,
+            long fileSize,
+            CancellationToken cancellationToken = default)
+        {
+            var validationError = ValidateImage(fileName, contentType, fileSize);
+            if (validationError is not null)
+                return Result<ProductImageResponse>.Failure(validationError);
+
+            var productExists = await _unitOfWork.GetRepository<Product>().GetQueryable()
+                .AsNoTracking()
+                .AnyAsync(product => product.Id == productId && !product.IsDeleted, cancellationToken);
+
+            if (!productExists)
+                return Result<ProductImageResponse>.NotFound("Product not found.");
+
+            ProductImageUploadResult uploadedImage;
+            try
+            {
+                uploadedImage = await _productImageStorage.UploadAsync(imageStream, fileName, contentType, cancellationToken);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+            {
+                return Result<ProductImageResponse>.Failure(ex.Message);
+            }
+
+            var productImage = new ProductImage
+            {
+                ProductId = productId,
+                ImageUrl = uploadedImage.ImageUrl,
+                CloudinaryPublicId = uploadedImage.PublicId
+            };
+
+            try
+            {
+                await _unitOfWork.GetRepository<ProductImage>().AddAsync(productImage, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                await TryDeleteUploadedImageAsync(uploadedImage.PublicId, cancellationToken);
+                throw;
+            }
+
+            return Result<ProductImageResponse>.Success(new ProductImageResponse
+            {
+                Id = productImage.Id,
+                ImageUrl = productImage.ImageUrl
+            });
+        }
+
+        public async Task<Result<bool>> DeleteProductImageAsync(Guid productId, Guid imageId, CancellationToken cancellationToken = default)
+        {
+            var imageRepository = _unitOfWork.GetRepository<ProductImage>();
+            var productImage = await imageRepository.FindAsync(
+                image => image.Id == imageId && image.ProductId == productId && !image.IsDeleted,
+                asNoTracking: false,
+                cancellationToken: cancellationToken);
+
+            if (productImage == null)
+                return Result<bool>.NotFound("Product image not found.");
+
+            if (string.IsNullOrWhiteSpace(productImage.CloudinaryPublicId))
+                return Result<bool>.Failure("Product image is missing its Cloudinary public id.");
+
+            try
+            {
+                await _productImageStorage.DeleteAsync(productImage.CloudinaryPublicId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
+            {
+                return Result<bool>.Failure(ex.Message);
+            }
+
+            imageRepository.Remove(productImage);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<bool>.Success(true);
+        }
+
         private static IQueryable<Product> ApplySorting(IQueryable<Product> query, string? sortBy, string? sortDirection)
         {
             var descending = string.Equals(sortDirection?.Trim(), "desc", StringComparison.OrdinalIgnoreCase);
@@ -235,6 +329,35 @@ namespace Application.Services
         {
             var normalized = value?.Trim().ToLowerInvariant();
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+        }
+
+        private static string? ValidateImage(string fileName, string contentType, long fileSize)
+        {
+            if (fileSize <= 0)
+                return "Image file is required.";
+
+            if (fileSize > MaxImageSize)
+                return "Image file size cannot exceed 10 MB.";
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                return "Image file name is required.";
+
+            if (string.IsNullOrWhiteSpace(contentType) || !AllowedImageContentTypes.Contains(contentType))
+                return "Only JPEG, PNG, WEBP, and GIF images are allowed.";
+
+            return null;
+        }
+
+        private async Task TryDeleteUploadedImageAsync(string publicId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _productImageStorage.DeleteAsync(publicId, cancellationToken);
+            }
+            catch
+            {
+                // The database failure is the caller-visible error; cleanup is best effort.
+            }
         }
     }
 }

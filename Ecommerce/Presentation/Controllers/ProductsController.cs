@@ -56,5 +56,37 @@ namespace Presentation.Controllers
             var result = await _productService.DeleteProductAsync(id, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpPost("{id:guid}/images")]
+        [Authorize(Roles = "Admin")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadProductImage(Guid id, [FromForm] IFormFile image, CancellationToken cancellationToken)
+        {
+            if (image == null)
+                return BadRequest(new Common.Responses.ApiResponse<object>
+                {
+                    Success = false,
+                    Errors = new List<string> { "Image file is required." }
+                });
+
+            await using var stream = image.OpenReadStream();
+            var result = await _productService.UploadProductImageAsync(
+                id,
+                stream,
+                image.FileName,
+                image.ContentType,
+                image.Length,
+                cancellationToken);
+
+            return this.FromResult(result);
+        }
+
+        [HttpDelete("{id:guid}/images/{imageId:guid}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteProductImage(Guid id, Guid imageId, CancellationToken cancellationToken)
+        {
+            var result = await _productService.DeleteProductImageAsync(id, imageId, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }

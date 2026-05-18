@@ -12,5 +12,7 @@ namespace Application.Interfaces.Services
         Task<Result<ProductResponse>> CreateProductAsync(CreateProductRequest createProductRequest, CancellationToken cancellationToken = default);
         Task<Result<ProductResponse>> UpdateProductAsync(Guid id, UpdateProductRequest updateProductRequest, CancellationToken cancellationToken = default);
         Task<Result<bool>> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<Result<ProductImageResponse>> UploadProductImageAsync(Guid productId, Stream imageStream, string fileName, string contentType, long fileSize, CancellationToken cancellationToken = default);
+        Task<Result<bool>> DeleteProductImageAsync(Guid productId, Guid imageId, CancellationToken cancellationToken = default);
     }
 }
