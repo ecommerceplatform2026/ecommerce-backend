@@ -31,6 +31,29 @@ namespace Application.Services
             return Result<ProductResponse>.Success(product.ToProductResponse());
         }
 
+        public async Task<Result<ProductDetailResponse>> GetProductDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var product = await _unitOfWork.GetRepository<Product>().FindAsync(
+                p =>
+                    p.Id == id &&
+                    !p.IsDeleted &&
+                    p.Status == ProductStatus.Active &&
+                    !p.Category.IsDeleted &&
+                    p.Category.Status == CategoryStatus.Active,
+                includes: new System.Linq.Expressions.Expression<Func<Product, object>>[]
+                {
+                    x => x.Category,
+                    x => x.ProductImages,
+                    x => x.ProductVariants
+                },
+                cancellationToken: cancellationToken);
+
+            if (product == null)
+                return Result<ProductDetailResponse>.NotFound("Product not found.");
+
+            return Result<ProductDetailResponse>.Success(product.ToProductDetailResponse());
+        }
+
         public async Task<Result<PagedResult<ProductResponse>>> GetProductsAsync(ProductListingRequest request, CancellationToken cancellationToken = default)
         {
             if (request.MinPrice < 0 || request.MaxPrice < 0)

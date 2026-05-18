@@ -21,7 +21,7 @@ namespace Presentation.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetProductById(Guid id, CancellationToken cancellationToken)
         {
-            var result = await _productService.GetProductByIdAsync(id, cancellationToken);
+            var result = await _productService.GetProductDetailByIdAsync(id, cancellationToken);
             return this.FromResult(result);
         }
 
