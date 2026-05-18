@@ -1,4 +1,5 @@
 using Application.DTOs.Product;
+using Application.DTOs.Product.ProductVariant;
 using Domain.Entities;
 
 namespace Application.Mappings
@@ -7,17 +8,21 @@ namespace Application.Mappings
     {
         public static ProductResponse ToProductResponse(this Product product)
         {
-            return new ProductResponse
-            {
-                Id = product.Id,
-                CategoryId = product.CategoryId,
-                Name = product.Name,
-                Description = product.Description,
-                Material = product.Material,
-                BasePrice = product.BasePrice,
-                Status = product.Status,
-                CategoryName = product.Category?.Name
-            };
+            var variants = product.ProductVariants?
+                .Where(v => !v.IsDeleted)
+                .Select(v => v.ToProductVariantResponse())
+                .ToList() ?? new List<ProductVariantResponse>();
+
+            return new ProductResponse(
+                product.Id,
+                product.CategoryId,
+                product.Name,
+                product.Description,
+                product.Material,
+                product.BasePrice,
+                product.Status,
+                product.Category?.Name,
+                variants);
         }
 
         public static Product ToEntity(this CreateProductRequest request)

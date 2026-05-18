@@ -46,6 +46,41 @@ namespace Domain.Entities
 
         public void Deactivate() => Status = ProductStatus.Inactive;
 
+        public void AddVariant(string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
+        {
+            sku = NormalizeRequired(sku);
+
+            if (ProductVariants.Any(v => v.SKU.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
+                throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
+
+            var variant = ProductVariant.Create(Id, sku, color, size, stock, price, lowStockThreshold);
+            ProductVariants.Add(variant);
+        }
+
+        public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
+        {
+            sku = NormalizeRequired(sku);
+
+            var variant = ProductVariants.FirstOrDefault(v => v.Id == variantId && !v.IsDeleted);
+            if (variant == null)
+                throw new KeyNotFoundException("Variant not found.");
+
+            if (ProductVariants.Any(v => v.Id != variantId && v.SKU.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
+                throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
+
+            variant.Update(sku, color, size, price, lowStockThreshold);
+            variant.UpdateStock(stock);
+        }
+
+        public void RemoveVariant(Guid variantId, string userId)
+        {
+            var variant = ProductVariants.FirstOrDefault(v => v.Id == variantId && !v.IsDeleted);
+            if (variant != null)
+            {
+                variant.SetDeleted(userId);
+            }
+        }
+
         private static string NormalizeRequired(string value)
         {
             if (string.IsNullOrWhiteSpace(value))

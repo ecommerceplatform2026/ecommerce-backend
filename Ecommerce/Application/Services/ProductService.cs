@@ -20,8 +20,10 @@ namespace Application.Services
         {
             var product = await _unitOfWork.GetRepository<Product>().FindAsync(
                 p => p.Id == id && !p.IsDeleted,
-                includes: x => x.Category,
-                cancellationToken: cancellationToken);
+                true,
+                cancellationToken,
+                x => x.Category,
+                x => x.ProductVariants);
 
             if (product == null)
                 return Result<ProductResponse>.NotFound("Product not found.");
@@ -33,8 +35,9 @@ namespace Application.Services
         {
             var products = await _unitOfWork.GetRepository<Product>().GetAllAsync(
                 p => !p.IsDeleted,
-                includes: x => x.Category,
-                cancellationToken: cancellationToken);
+                cancellationToken,
+                x => x.Category,
+                x => x.ProductVariants);
 
             return Result<List<ProductResponse>>.Success(products.Select(p => p.ToProductResponse()).ToList());
         }
