@@ -1,4 +1,5 @@
-﻿using Application.Common.Response;
+using Application.Common.Caching;
+using Application.Common.Response;
 using Application.DTOs.Category;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
@@ -10,16 +11,27 @@ namespace Application.Services
     public sealed class CategoryService : ICategoryService
     {
         private readonly IUnitOfWork _unitOfWork;
-        public CategoryService(IUnitOfWork unitOfWork)
+        private readonly ICacheService _cacheService;
+
+        public CategoryService(IUnitOfWork unitOfWork, ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<List<CategoryResponse>>> GetCategoriesAsync(CancellationToken cancellationToken = default)
         {
-            var categories = await _unitOfWork.GetRepository<Category>().GetAllAsync(category => !category.IsDeleted, cancellationToken);
+            var response = await _cacheService.GetOrAddAsync(
+                CacheKeys.CategoriesAll,
+                async () =>
+                {
+                    var categories = await _unitOfWork.GetRepository<Category>().GetAllAsync(category => !category.IsDeleted, cancellationToken);
+                    return categories.OrderBy(category => category.Name).Select(c => c.ToCategoryResponse()).ToList();
+                },
+                TimeSpan.FromHours(1),
+                cancellationToken);
 
-            return Result<List<CategoryResponse>>.Success(categories.OrderBy(category => category.Name).Select(c => c.ToCategoryResponse()).ToList());
+            return Result<List<CategoryResponse>>.Success(response ?? new List<CategoryResponse>());
         }
 
         public async Task<Result<CategoryResponse>> CreateCategoryAsync(CreateCategoryRequest request, CancellationToken cancellationToken = default)
@@ -38,6 +50,8 @@ namespace Application.Services
 
             await categoryRepository.AddAsync(category, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveAsync(CacheKeys.CategoriesAll, cancellationToken);
 
             return Result<CategoryResponse>.Success(category.ToCategoryResponse());
         }
@@ -61,6 +75,9 @@ namespace Application.Services
             category.Update(name);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            await _cacheService.RemoveAsync(CacheKeys.CategoriesAll, cancellationToken);
+            await _cacheService.RemoveByPrefixAsync(CacheKeys.ProductsPrefix, cancellationToken);
+
             return Result<CategoryResponse>.Success(category.ToCategoryResponse());
         }
 
@@ -79,6 +96,9 @@ namespace Application.Services
             category.Deactivate();
             categoryRepository.Remove(category);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveAsync(CacheKeys.CategoriesAll, cancellationToken);
+            await _cacheService.RemoveByPrefixAsync(CacheKeys.ProductsPrefix, cancellationToken);
 
             return Result<bool>.Success(true);
         }
