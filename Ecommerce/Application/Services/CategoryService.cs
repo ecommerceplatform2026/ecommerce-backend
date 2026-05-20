@@ -42,7 +42,7 @@ namespace Application.Services
 
             var categoryRepository = _unitOfWork.GetRepository<Category>();
 
-            var exists = await categoryRepository.FindAsync(c => c.Name.ToLowerInvariant() == name.ToLowerInvariant() && !c.IsDeleted, cancellationToken: cancellationToken);
+            var exists = await categoryRepository.FindAsync(c => c.Name.ToLower() == name.ToLower() && !c.IsDeleted, cancellationToken: cancellationToken);
             if (exists is not null)
                 return Result<CategoryResponse>.Failure("Category name already exists.");
 
@@ -68,7 +68,7 @@ namespace Application.Services
             if (category is null)
                 return Result<CategoryResponse>.NotFound("Category not found.");
 
-            var nameExists = await categoryRepository.FindAsync(item => item.Id != categoryId && !item.IsDeleted && item.Name.ToLowerInvariant() == name.ToLowerInvariant(), cancellationToken: cancellationToken);
+            var nameExists = await categoryRepository.FindAsync(item => item.Id != categoryId && !item.IsDeleted && item.Name.ToLower() == name.ToLower(), cancellationToken: cancellationToken);
             if (nameExists is not null)
                 return Result<CategoryResponse>.Failure("Category name already exists.");
 
