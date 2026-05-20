@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Text.Json;
 
 namespace Infrastructure.Services
@@ -12,7 +13,8 @@ namespace Infrastructure.Services
         private readonly IDistributedCache _distributedCache;
         private readonly IConnectionMultiplexer _connectionMultiplexer;
         private readonly ILogger<RedisCacheService> _logger;
-        private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+        private static readonly Dictionary<string, RefCountedLock> Locks = new();
+        private static readonly object LockObj = new();
 
         public RedisCacheService(
             IDistributedCache distributedCache,
@@ -60,6 +62,7 @@ namespace Infrastructure.Services
                 }
 
                 await _distributedCache.SetStringAsync(key, serializedValue, options, cancellationToken);
+                await TrackKeyAsync(key);
             }
             catch (Exception ex)
             {
@@ -72,6 +75,7 @@ namespace Infrastructure.Services
             try
             {
                 await _distributedCache.RemoveAsync(key, cancellationToken);
+                await UntrackKeyAsync(key);
             }
             catch (Exception ex)
             {
@@ -83,16 +87,17 @@ namespace Infrastructure.Services
         {
             try
             {
-                var endpoints = _connectionMultiplexer.GetEndPoints();
-                foreach (var endpoint in endpoints)
+                var db = _connectionMultiplexer.GetDatabase();
+                var setKey = $"prefix_keys:{prefix}";
+                var keys = await db.SetMembersAsync(setKey);
+
+                if (keys.Length > 0)
                 {
-                    var server = _connectionMultiplexer.GetServer(endpoint);
-                    var keys = server.Keys(pattern: $"{prefix}*");
-                    foreach (var key in keys)
-                    {
-                        await _distributedCache.RemoveAsync(key!, cancellationToken);
-                    }
+                    var tasks = keys.Select(key => db.KeyDeleteAsync(key.ToString())).ToArray();
+                    await Task.WhenAll(tasks);
                 }
+
+                await db.KeyDeleteAsync(setKey);
             }
             catch (Exception ex)
             {
@@ -112,11 +117,27 @@ namespace Infrastructure.Services
                 return cachedValue;
             }
 
-            var keyLock = Locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
-            await keyLock.WaitAsync(cancellationToken);
+            RefCountedLock myLock;
+            lock (LockObj)
+            {
+                if (Locks.TryGetValue(key, out var existing))
+                {
+                    existing.RefCount++;
+                    myLock = existing;
+                }
+                else
+                {
+                    myLock = new RefCountedLock();
+                    Locks[key] = myLock;
+                }
+            }
 
+            bool acquired = false;
             try
             {
+                await myLock.Semaphore.WaitAsync(cancellationToken);
+                acquired = true;
+
                 cachedValue = await GetAsync<T>(key, cancellationToken);
                 if (cachedValue is not null)
                 {
@@ -134,8 +155,67 @@ namespace Infrastructure.Services
             }
             finally
             {
-                keyLock.Release();
+                if (acquired)
+                {
+                    myLock.Semaphore.Release();
+                }
+
+                lock (LockObj)
+                {
+                    myLock.RefCount--;
+                    if (myLock.RefCount == 0)
+                    {
+                        Locks.Remove(key);
+                        myLock.Semaphore.Dispose();
+                    }
+                }
             }
+        }
+
+        private async Task TrackKeyAsync(string key)
+        {
+            var prefix = GetPrefix(key);
+            if (prefix is not null)
+            {
+                try
+                {
+                    var db = _connectionMultiplexer.GetDatabase();
+                    await db.SetAddAsync($"prefix_keys:{prefix}", key);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error tracking key {Key} for prefix {Prefix}", key, prefix);
+                }
+            }
+        }
+
+        private async Task UntrackKeyAsync(string key)
+        {
+            var prefix = GetPrefix(key);
+            if (prefix is not null)
+            {
+                try
+                {
+                    var db = _connectionMultiplexer.GetDatabase();
+                    await db.SetRemoveAsync($"prefix_keys:{prefix}", key);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error untracking key {Key} for prefix {Prefix}", key, prefix);
+                }
+            }
+        }
+
+        private static string? GetPrefix(string key)
+        {
+            var colonIndex = key.IndexOf(':');
+            return colonIndex > 0 ? key.Substring(0, colonIndex + 1) : null;
+        }
+
+        private sealed class RefCountedLock
+        {
+            public SemaphoreSlim Semaphore { get; } = new(1, 1);
+            public int RefCount { get; set; } = 1;
         }
     }
 }

@@ -23,7 +23,11 @@ namespace Infrastructure.DependencyInjection
             services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
             services.AddScoped<IUniqueConstraintChecker, PostgresUniqueConstraintChecker>();
 
-            var redisConnectionString = configuration.GetConnectionString("Redis") ?? throw new InvalidOperationException("Redis connection string 'Redis' is not configured in appsettings."); ;
+            var redisConnectionString = configuration.GetConnectionString("Redis");
+            if (string.IsNullOrWhiteSpace(redisConnectionString))
+            {
+                throw new InvalidOperationException("Redis connection string 'Redis' is not configured or is empty in appsettings.");
+            }
 
             services.AddSingleton<IConnectionMultiplexer>(sp =>
             {
