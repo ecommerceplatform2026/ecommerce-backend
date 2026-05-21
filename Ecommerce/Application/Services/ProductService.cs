@@ -12,6 +12,7 @@ namespace Application.Services
     public sealed class ProductService : IProductService
     {
         private const long MaxImageSize = 10 * 1024 * 1024;
+        private const string LikeEscape = "\\";
         private static readonly HashSet<string> AllowedImageContentTypes = new(StringComparer.OrdinalIgnoreCase)
         {
             "image/jpeg",
@@ -85,11 +86,12 @@ namespace Application.Services
             var search = Normalize(request.Search);
             if (search is not null)
             {
+                var searchPattern = ToContainsPattern(search);
                 query = query.Where(product =>
-                    product.Name.ToLower().Contains(search) ||
-                    (product.Description != null && product.Description.ToLower().Contains(search)) ||
-                    (product.Material != null && product.Material.ToLower().Contains(search)) ||
-                    product.Category.Name.ToLower().Contains(search));
+                    EF.Functions.ILike(product.Name, searchPattern, LikeEscape) ||
+                    (product.Description != null && EF.Functions.ILike(product.Description, searchPattern, LikeEscape)) ||
+                    (product.Material != null && EF.Functions.ILike(product.Material, searchPattern, LikeEscape)) ||
+                    EF.Functions.ILike(product.Category.Name, searchPattern, LikeEscape));
             }
 
             if (request.CategoryId.HasValue)
@@ -97,7 +99,10 @@ namespace Application.Services
 
             var category = Normalize(request.Category);
             if (category is not null)
-                query = query.Where(product => product.Category.Name.ToLower().Contains(category));
+            {
+                var categoryPattern = ToContainsPattern(category);
+                query = query.Where(product => EF.Functions.ILike(product.Category.Name, categoryPattern, LikeEscape));
+            }
 
             if (request.MinPrice.HasValue || request.MaxPrice.HasValue)
             {
@@ -119,7 +124,7 @@ namespace Application.Services
                 query = query.Where(product => product.ProductVariants.Any(variant =>
                     !variant.IsDeleted &&
                     variant.Size != null &&
-                    variant.Size.ToLower() == size));
+                    EF.Functions.ILike(variant.Size, EscapeLikePattern(size), LikeEscape)));
             }
 
             var color = Normalize(request.Color);
@@ -128,12 +133,12 @@ namespace Application.Services
                 query = query.Where(product => product.ProductVariants.Any(variant =>
                     !variant.IsDeleted &&
                     variant.Color != null &&
-                    variant.Color.ToLower() == color));
+                    EF.Functions.ILike(variant.Color, EscapeLikePattern(color), LikeEscape)));
             }
 
             var material = Normalize(request.Material);
             if (material is not null)
-                query = query.Where(product => product.Material != null && product.Material.ToLower() == material);
+                query = query.Where(product => product.Material != null && EF.Functions.ILike(product.Material, EscapeLikePattern(material), LikeEscape));
 
             var totalCount = await query.CountAsync(cancellationToken);
 
@@ -258,7 +263,7 @@ namespace Application.Services
             }
             catch
             {
-                await TryDeleteUploadedImageAsync(uploadedImage.PublicId, cancellationToken);
+                await TryDeleteImageAsync(uploadedImage.PublicId, cancellationToken);
                 throw;
             }
 
@@ -280,20 +285,13 @@ namespace Application.Services
             if (productImage == null)
                 return Result<bool>.NotFound("Product image not found.");
 
-            if (string.IsNullOrWhiteSpace(productImage.CloudinaryPublicId))
-                return Result<bool>.Failure("Product image is missing its Cloudinary public id.");
-
-            try
-            {
-                await _productImageStorage.DeleteAsync(productImage.CloudinaryPublicId, cancellationToken);
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException)
-            {
-                return Result<bool>.Failure(ex.Message);
-            }
+            var publicId = productImage.CloudinaryPublicId;
 
             imageRepository.Remove(productImage);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(publicId))
+                await TryDeleteImageAsync(publicId, cancellationToken);
 
             return Result<bool>.Success(true);
         }
@@ -327,8 +325,21 @@ namespace Application.Services
 
         private static string? Normalize(string? value)
         {
-            var normalized = value?.Trim().ToLowerInvariant();
+            var normalized = value?.Trim();
             return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+        }
+
+        private static string ToContainsPattern(string value)
+        {
+            return $"%{EscapeLikePattern(value)}%";
+        }
+
+        private static string EscapeLikePattern(string value)
+        {
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("%", "\\%")
+                .Replace("_", "\\_");
         }
 
         private static string? ValidateImage(string fileName, string contentType, long fileSize)
@@ -348,7 +359,7 @@ namespace Application.Services
             return null;
         }
 
-        private async Task TryDeleteUploadedImageAsync(string publicId, CancellationToken cancellationToken)
+        private async Task TryDeleteImageAsync(string publicId, CancellationToken cancellationToken)
         {
             try
             {

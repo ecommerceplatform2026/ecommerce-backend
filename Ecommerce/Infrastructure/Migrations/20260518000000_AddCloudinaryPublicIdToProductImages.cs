@@ -15,8 +15,7 @@ namespace Infrastructure.Migrations
                 table: "ProductImages",
                 type: "character varying(255)",
                 maxLength: 255,
-                nullable: false,
-                defaultValue: "");
+                nullable: true);
         }
 
         /// <inheritdoc />

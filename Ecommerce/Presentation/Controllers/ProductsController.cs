@@ -21,13 +21,29 @@ namespace Presentation.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetProductById(Guid id, CancellationToken cancellationToken)
         {
+            var result = await _productService.GetProductByIdAsync(id, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpGet("{id:guid}/detail")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetProductDetailById(Guid id, CancellationToken cancellationToken)
+        {
             var result = await _productService.GetProductDetailByIdAsync(id, cancellationToken);
             return this.FromResult(result);
         }
 
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetProducts([FromQuery] ProductListingRequest request, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetProducts(CancellationToken cancellationToken)
+        {
+            var result = await _productService.GetAllProductsAsync(cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpGet("search")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SearchProducts([FromQuery] ProductListingRequest request, CancellationToken cancellationToken)
         {
             var result = await _productService.GetProductsAsync(request, cancellationToken);
             return this.FromResult(result);
@@ -60,7 +76,7 @@ namespace Presentation.Controllers
         [HttpPost("{id:guid}/images")]
         [Authorize(Roles = "Admin")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadProductImage(Guid id, [FromForm] IFormFile image, CancellationToken cancellationToken)
+        public async Task<IActionResult> UploadProductImage(Guid id, [FromForm] IFormFile? image, CancellationToken cancellationToken)
         {
             if (image == null)
                 return BadRequest(new Common.Responses.ApiResponse<object>

@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.Configurations;
 using Application.DTOs.Product;
@@ -52,7 +53,10 @@ namespace Infrastructure.Services
                 content,
                 cancellationToken);
 
-            var uploadResponse = await response.Content.ReadFromJsonAsync<CloudinaryUploadResponse>(cancellationToken);
+            var uploadResponse = await ReadCloudinaryResponseAsync<CloudinaryUploadResponse>(
+                response.Content,
+                "Cloudinary image upload failed.",
+                cancellationToken);
 
             if (!response.IsSuccessStatusCode || uploadResponse?.SecureUrl is null || uploadResponse.PublicId is null)
             {
@@ -94,7 +98,10 @@ namespace Infrastructure.Services
                 content,
                 cancellationToken);
 
-            var deleteResponse = await response.Content.ReadFromJsonAsync<CloudinaryDeleteResponse>(cancellationToken);
+            var deleteResponse = await ReadCloudinaryResponseAsync<CloudinaryDeleteResponse>(
+                response.Content,
+                "Cloudinary image delete failed.",
+                cancellationToken);
 
             if (!response.IsSuccessStatusCode || string.Equals(deleteResponse?.Result, "error", StringComparison.OrdinalIgnoreCase))
             {
@@ -110,6 +117,21 @@ namespace Infrastructure.Services
                 string.IsNullOrWhiteSpace(_settings.ApiSecret))
             {
                 throw new InvalidOperationException("Cloudinary settings are not configured.");
+            }
+        }
+
+        private static async Task<T?> ReadCloudinaryResponseAsync<T>(
+            HttpContent content,
+            string failureMessage,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await content.ReadFromJsonAsync<T>(cancellationToken);
+            }
+            catch (Exception ex) when (ex is JsonException or NotSupportedException)
+            {
+                throw new InvalidOperationException(failureMessage, ex);
             }
         }
 

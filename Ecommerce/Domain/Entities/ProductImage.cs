@@ -7,7 +7,7 @@ namespace Domain.Entities
     {
         public Guid ProductId { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
-        public string CloudinaryPublicId { get; set; } = string.Empty;
+        public string? CloudinaryPublicId { get; set; }
 
         public Product? Product { get; set; }
     }

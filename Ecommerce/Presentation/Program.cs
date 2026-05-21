@@ -50,7 +50,13 @@ builder.Services
 
 builder.Services
     .AddOptions<CloudinarySettings>()
-    .Bind(builder.Configuration.GetSection("CloudinarySettings"));
+    .Bind(builder.Configuration.GetSection("CloudinarySettings"))
+    .Validate(settings =>
+        !string.IsNullOrWhiteSpace(settings.CloudName) &&
+        !string.IsNullOrWhiteSpace(settings.ApiKey) &&
+        !string.IsNullOrWhiteSpace(settings.ApiSecret),
+        "CloudinarySettings must include CloudName, ApiKey, and ApiSecret.")
+    .ValidateOnStart();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
