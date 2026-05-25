@@ -1,11 +1,18 @@
 using Application.Common.Response;
+using Application.Configurations;
 using Application.DTOs.Checkout;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -13,11 +20,16 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
+        private readonly VnPaySettings _vnPaySettings;
 
-        public CheckoutService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+        public CheckoutService(
+            IUnitOfWork unitOfWork, 
+            ICurrentUserService currentUserService,
+            IOptions<VnPaySettings> vnPayOptions)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+            _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -31,6 +43,42 @@ namespace Application.Services
             if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
             {
                 return Result<CheckoutResponse>.Unauthorized("User is not authenticated.");
+            }
+
+            var existingPayment = await _unitOfWork.GetRepository<Payment>()
+                .GetQueryable()
+                .Include(p => p.Order)
+                    .ThenInclude(o => o!.OrderItems)
+                .FirstOrDefaultAsync(p => p.Order != null 
+                    && p.Order.UserId == userId 
+                    && p.Order.Status == OrderStatus.Pending 
+                    && p.Status == PaymentStatus.Pending
+                    && (p.Order.PaymentMethod == PaymentMethod.VNPay 
+                        || p.Order.PaymentMethod == PaymentMethod.MoMo 
+                        || p.Order.PaymentMethod == PaymentMethod.ZaloPay 
+                        || p.Order.PaymentMethod == PaymentMethod.PayOS)
+                    && !p.IsDeleted, cancellationToken);
+
+            if (existingPayment != null)
+            {
+                var itemResponses = existingPayment.Order!.OrderItems.Select(oi => new CheckoutItemResponse(
+                    oi.Id,
+                    oi.ProductVariantId,
+                    oi.Quantity,
+                    oi.Price,
+                    oi.ProductSnapshot)).ToList();
+
+                var response = new CheckoutResponse(
+                    existingPayment.OrderId,
+                    existingPayment.OrderCode,
+                    existingPayment.Order.TotalAmount,
+                    existingPayment.Order.Status,
+                    existingPayment.Order.PaymentMethod,
+                    itemResponses,
+                    existingPayment.CheckoutUrl,
+                    existingPayment.PaymentLinkId);
+
+                return Result<CheckoutResponse>.Success(response);
             }
 
             var cartItems = await _unitOfWork.GetRepository<CartItem>()
@@ -137,6 +185,47 @@ namespace Application.Services
                     _unitOfWork.GetRepository<CartItem>().Remove(cartItem);
                 }
 
+                string? checkoutUrl = null;
+                string paymentLinkId = "";
+
+                if (request.PaymentMethod == PaymentMethod.VNPay)
+                {
+                    paymentLinkId = Guid.NewGuid().ToString();
+                    var vnPay = new VnPayLibrary();
+                    vnPay.AddRequestData("vnp_Version", "2.1.0");
+                    vnPay.AddRequestData("vnp_Command", "pay");
+                    vnPay.AddRequestData("vnp_TmnCode", _vnPaySettings.TmnCode);
+                    vnPay.AddRequestData("vnp_Amount", (totalAmount * 100).ToString());
+                    vnPay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
+                    vnPay.AddRequestData("vnp_CurrCode", "VND");
+                    vnPay.AddRequestData("vnp_IpAddr", "127.0.0.1");
+                    vnPay.AddRequestData("vnp_Locale", "vn");
+                    vnPay.AddRequestData("vnp_OrderInfo", $"Thanh toan don hang {orderCode}");
+                    vnPay.AddRequestData("vnp_OrderType", "other");
+                    vnPay.AddRequestData("vnp_ReturnUrl", _vnPaySettings.ReturnUrl);
+                    vnPay.AddRequestData("vnp_TxnRef", orderCode.ToString());
+
+                    checkoutUrl = vnPay.CreateRequestUrl(_vnPaySettings.PaymentUrl, _vnPaySettings.HashSecret);
+                }
+                else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
+                {
+                    paymentLinkId = Guid.NewGuid().ToString();
+                    checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
+                }
+
+                var payment = new Payment
+                {
+                    OrderId = order.Id,
+                    PaymentLinkId = paymentLinkId,
+                    OrderCode = orderCode,
+                    CheckoutUrl = checkoutUrl,
+                    Amount = totalAmount,
+                    Currency = "VND",
+                    Status = PaymentStatus.Pending
+                };
+
+                await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
+
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -153,7 +242,9 @@ namespace Application.Services
                     order.TotalAmount,
                     order.Status,
                     order.PaymentMethod,
-                    itemResponses);
+                    itemResponses,
+                    checkoutUrl,
+                    paymentLinkId);
 
                 return Result<CheckoutResponse>.Success(response);
             }
