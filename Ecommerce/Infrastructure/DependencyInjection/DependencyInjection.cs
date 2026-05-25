@@ -22,6 +22,7 @@ namespace Infrastructure.DependencyInjection
             services.AddScoped<IJwtService, JwtService>();
             services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
             services.AddScoped<IUniqueConstraintChecker, PostgresUniqueConstraintChecker>();
+            services.AddHttpClient<IProductImageStorage, CloudinaryProductImageStorage>();
 
             var redisConnectionString = configuration.GetConnectionString("Redis");
             if (string.IsNullOrWhiteSpace(redisConnectionString))

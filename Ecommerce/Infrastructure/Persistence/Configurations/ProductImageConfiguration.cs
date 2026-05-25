@@ -10,6 +10,7 @@ namespace Infrastructure.Persistence.Configurations
         {
             builder.HasKey(pi => pi.Id);
             builder.Property(pi => pi.ImageUrl).IsRequired().HasMaxLength(500);
+            builder.Property(pi => pi.CloudinaryPublicId).HasMaxLength(255);
 
             builder.HasOne(pi => pi.Product)
                    .WithMany(p => p.ProductImages)
