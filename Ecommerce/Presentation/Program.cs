@@ -82,6 +82,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SchemaFilter<EnumSchemaFilter>();
+    options.CustomSchemaIds(type => type.FullName);
 
     options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
     {
