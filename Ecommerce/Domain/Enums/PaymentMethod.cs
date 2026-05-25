@@ -5,6 +5,7 @@ namespace Domain.Enums
         COD = 0,
         MoMo = 1,
         ZaloPay = 2,
-        PayOS = 3
+        PayOS = 3,
+        VNPay = 4
     }
 }

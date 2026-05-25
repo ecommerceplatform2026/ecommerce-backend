@@ -1,6 +1,4 @@
 using Domain.Enums;
-using System;
-using System.Collections.Generic;
 
 namespace Application.DTOs.Checkout
 {
@@ -10,7 +8,9 @@ namespace Application.DTOs.Checkout
         long TotalAmount,
         OrderStatus Status,
         PaymentMethod PaymentMethod,
-        List<CheckoutItemResponse> Items);
+        List<CheckoutItemResponse> Items,
+        string? CheckoutUrl = null,
+        string? PaymentLinkId = null);
 
     public sealed record CheckoutItemResponse(
         Guid OrderItemId,
