@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Application.DTOs.Product.ProductVariant
+namespace Application.DTOs.Product.ProductVariants
 {
-    public class UpdateProductVariantRequest
+    public class CreateProductVariantRequest
     {
         [Required(ErrorMessage = "SKU is required.")]
         [MaxLength(50, ErrorMessage = "SKU must not exceed 50 characters.")]

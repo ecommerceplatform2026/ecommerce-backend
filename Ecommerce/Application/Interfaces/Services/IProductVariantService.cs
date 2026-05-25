@@ -1,5 +1,5 @@
 using Application.Common.Response;
-using Application.DTOs.Product.ProductVariant;
+using Application.DTOs.Product.ProductVariants;
 
 namespace Application.Interfaces.Services
 {

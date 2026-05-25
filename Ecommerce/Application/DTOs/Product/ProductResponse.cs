@@ -1,4 +1,3 @@
-using Application.DTOs.Product.ProductVariant;
 using Domain.Enums;
 
 namespace Application.DTOs.Product
@@ -12,5 +11,5 @@ namespace Application.DTOs.Product
         long BasePrice,
         ProductStatus Status,
         string? CategoryName,
-        List<ProductVariantResponse> Variants);
+        List<Application.DTOs.Product.ProductVariants.ProductVariantResponse> Variants);
 }

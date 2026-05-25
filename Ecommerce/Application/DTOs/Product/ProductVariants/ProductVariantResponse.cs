@@ -1,4 +1,4 @@
-namespace Application.DTOs.Product.ProductVariant
+namespace Application.DTOs.Product.ProductVariants
 {
     public sealed record ProductVariantResponse(
         Guid Id,

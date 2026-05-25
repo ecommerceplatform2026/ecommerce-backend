@@ -1,6 +1,6 @@
 using Application.Common.Caching;
 using Application.Common.Response;
-using Application.DTOs.Product.ProductVariant;
+using Application.DTOs.Product.ProductVariants;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Application.Mappings;
