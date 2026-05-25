@@ -76,7 +76,7 @@ namespace Presentation.Controllers
         [HttpPost("{id:guid}/images")]
         [Authorize(Roles = "Admin")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadProductImage(Guid id, [FromForm] IFormFile? image, CancellationToken cancellationToken)
+        public async Task<IActionResult> UploadProductImage(Guid id, IFormFile? image, CancellationToken cancellationToken)
         {
             if (image == null)
                 return BadRequest(new Common.Responses.ApiResponse<object>
