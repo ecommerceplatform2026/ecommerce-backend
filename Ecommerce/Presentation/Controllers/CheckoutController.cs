@@ -3,9 +3,6 @@ using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Presentation.Common.Extensions;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Presentation.Controllers
 {
