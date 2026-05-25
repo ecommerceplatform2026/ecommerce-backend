@@ -1,3 +1,4 @@
+using Application.Common.Caching;
 using Application.Common.Response;
 using Application.DTOs.Product.ProductVariant;
 using Application.Interfaces.Repositories.Base;
@@ -12,11 +13,22 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
+        private readonly ICacheService _cacheService;
 
-        public ProductVariantService(IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
+        public ProductVariantService(
+            IUnitOfWork unitOfWork,
+            ICurrentUserService currentUserService,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
             _currentUserService = currentUserService;
+            _cacheService = cacheService;
+        }
+
+        private async Task InvalidateProductCacheAsync(Guid productId, CancellationToken cancellationToken)
+        {
+            await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+            await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
         }
 
         public async Task<Result<List<ProductVariantResponse>>> GetVariantsByProductIdAsync(Guid productId, CancellationToken cancellationToken = default)
@@ -80,6 +92,8 @@ namespace Application.Services
                 product.AddVariant(normalizedSku, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+                await InvalidateProductCacheAsync(productId, cancellationToken);
+
                 var newVariant = product.ProductVariants.First(v => v.SKU.Equals(normalizedSku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted);
                 return Result<ProductVariantResponse>.Success(newVariant.ToProductVariantResponse());
             }
@@ -117,6 +131,8 @@ namespace Application.Services
                 product.UpdateVariant(variantId, normalizedSku, request.Color, request.Size, request.Stock, request.Price, request.LowStockThreshold);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+                await InvalidateProductCacheAsync(productId, cancellationToken);
+
                 var updatedVariant = product.ProductVariants.First(v => v.Id == variantId);
                 return Result<ProductVariantResponse>.Success(updatedVariant.ToProductVariantResponse());
             }
@@ -153,6 +169,9 @@ namespace Application.Services
             {
                 variant.UpdateStock(newStock);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                await InvalidateProductCacheAsync(productId, cancellationToken);
+
                 return Result<bool>.Success(true);
             }
             catch (ArgumentException ex)
@@ -183,6 +202,8 @@ namespace Application.Services
             var currentUserId = _currentUserService.GetUserIdOrNull() ?? "system";
             product.RemoveVariant(variantId, currentUserId);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await InvalidateProductCacheAsync(productId, cancellationToken);
 
             return Result<bool>.Success(true);
         }
