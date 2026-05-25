@@ -16,6 +16,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IProductVariantService, ProductVariantService>();
             services.AddScoped<ICartService, CartService>();
             services.AddScoped<ICheckoutService, CheckoutService>();
+            services.AddScoped<IOrderService, OrderService>();
 
             return services;
         }
