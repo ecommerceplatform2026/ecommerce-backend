@@ -1,16 +1,16 @@
+using Application.DTOs.Product.ProductVariant;
 using Domain.Enums;
 
 namespace Application.DTOs.Product
 {
-    public class ProductResponse
-    {
-        public Guid Id { get; set; }
-        public Guid CategoryId { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public string? Material { get; set; }
-        public long BasePrice { get; set; }
-        public ProductStatus Status { get; set; }
-        public string? CategoryName { get; set; }
-    }
+    public sealed record ProductResponse(
+        Guid Id,
+        Guid CategoryId,
+        string Name,
+        string? Description,
+        string? Material,
+        long BasePrice,
+        ProductStatus Status,
+        string? CategoryName,
+        List<ProductVariantResponse> Variants);
 }

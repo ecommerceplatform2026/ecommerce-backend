@@ -1,3 +1,4 @@
+using Application.Common.Caching;
 using Application.Common.Response;
 using Application.DTOs.Product;
 using Application.Interfaces.Repositories.Base;
@@ -23,24 +24,41 @@ namespace Application.Services
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly IProductImageStorage _productImageStorage;
+        private readonly ICacheService _cacheService;
 
-        public ProductService(IUnitOfWork unitOfWork, IProductImageStorage productImageStorage)
+        public ProductService(
+            IUnitOfWork unitOfWork,
+            IProductImageStorage productImageStorage,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
             _productImageStorage = productImageStorage;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<ProductResponse>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
-            var product = await _unitOfWork.GetRepository<Product>().FindAsync(
-                p => p.Id == id && !p.IsDeleted,
-                includes: x => x.Category,
-                cancellationToken: cancellationToken);
+            var cacheKey = CacheKeys.GetProductDetailKey(id);
+            var response = await _cacheService.GetOrAddAsync(
+                cacheKey,
+                async () =>
+                {
+                    var product = await _unitOfWork.GetRepository<Product>().FindAsync(
+                        p => p.Id == id && !p.IsDeleted,
+                        true,
+                        cancellationToken,
+                        x => x.Category,
+                        x => x.ProductVariants);
 
-            if (product == null)
+                    return product?.ToProductResponse();
+                },
+                TimeSpan.FromHours(1),
+                cancellationToken);
+
+            if (response == null)
                 return Result<ProductResponse>.NotFound("Product not found.");
 
-            return Result<ProductResponse>.Success(product.ToProductResponse());
+            return Result<ProductResponse>.Success(response);
         }
 
         public async Task<Result<ProductDetailResponse>> GetProductDetailByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -161,12 +179,22 @@ namespace Application.Services
 
         public async Task<Result<List<ProductResponse>>> GetAllProductsAsync(CancellationToken cancellationToken = default)
         {
-            var products = await _unitOfWork.GetRepository<Product>().GetAllAsync(
-                p => !p.IsDeleted,
-                includes: x => x.Category,
-                cancellationToken: cancellationToken);
+            var response = await _cacheService.GetOrAddAsync(
+                CacheKeys.ProductsAll,
+                async () =>
+                {
+                    var products = await _unitOfWork.GetRepository<Product>().GetAllAsync(
+                        p => !p.IsDeleted,
+                        cancellationToken,
+                        x => x.Category,
+                        x => x.ProductVariants);
 
-            return Result<List<ProductResponse>>.Success(products.Select(p => p.ToProductResponse()).ToList());
+                    return products.Select(p => p.ToProductResponse()).ToList();
+                },
+                TimeSpan.FromHours(1),
+                cancellationToken);
+
+            return Result<List<ProductResponse>>.Success(response ?? new List<ProductResponse>());
         }
 
         public async Task<Result<ProductResponse>> CreateProductAsync(CreateProductRequest createProductRequest, CancellationToken cancellationToken = default)
@@ -176,9 +204,11 @@ namespace Application.Services
                 return Result<ProductResponse>.NotFound("Category not found.");
 
             var product = createProductRequest.ToEntity();
-            
+
             await _unitOfWork.GetRepository<Product>().AddAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
 
             return await GetProductByIdAsync(product.Id, cancellationToken);
         }
@@ -202,6 +232,9 @@ namespace Application.Services
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+            await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(id), cancellationToken);
+
             return await GetProductByIdAsync(id, cancellationToken);
         }
 
@@ -216,6 +249,9 @@ namespace Application.Services
             product.Deactivate();
             productRepository.Remove(product);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+            await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(id), cancellationToken);
 
             return Result<bool>.Success(true);
         }
