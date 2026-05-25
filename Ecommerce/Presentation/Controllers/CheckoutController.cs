@@ -2,12 +2,14 @@ using Application.DTOs.Checkout;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Presentation.Common.Extensions;
 
 namespace Presentation.Controllers
 {
     [ApiController]
     [Authorize]
+    [EnableRateLimiting("checkout-limiter")]
     [Route("api/checkout")]
     public sealed class CheckoutController : ControllerBase
     {
