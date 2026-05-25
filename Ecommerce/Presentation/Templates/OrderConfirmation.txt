@@ -1,0 +1,22 @@
+==================================================
+Date: {CurrentDate}
+To: {RecipientName} <{RecipientEmail}>
+Subject: Order Confirmation - Order #{OrderCode}
+==================================================
+Dear {RecipientName},
+
+Thank you for your purchase! Your order has been successfully placed.
+
+Order Details:
+- Order Code: #{OrderCode}
+- Date: {OrderDate}
+- Total Amount: {TotalAmount} VND
+- Payment Method: {PaymentMethod}
+- Order Status: {OrderStatus}
+
+Items Ordered:
+{ItemsText}
+
+Best regards,
+Ecommerce Platform Team
+==================================================
