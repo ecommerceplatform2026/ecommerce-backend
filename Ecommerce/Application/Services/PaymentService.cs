@@ -1,3 +1,4 @@
+using Application.Common.Caching;
 using Application.Common.Response;
 using Application.Configurations;
 using Application.DTOs.Payment;
@@ -15,15 +16,18 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly VnPaySettings _vnPaySettings;
         private readonly INotificationService _notificationService;
+        private readonly ICacheService _cacheService;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
             IOptions<VnPaySettings> vnPayOptions,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -90,6 +94,7 @@ namespace Application.Services
                     : Result<PaymentResponse>.Failure("Payment was already processed as failed.");
             }
 
+            var productIdsToInvalidate = new List<Guid>();
             if (isSuccess)
             {
                 paymentRecord.Status = PaymentStatus.Success;
@@ -118,6 +123,11 @@ namespace Application.Services
                         {
                             variant.UpdateStock(variant.Stock + orderItem.Quantity);
                             _unitOfWork.GetRepository<ProductVariant>().Update(variant);
+
+                            if (!productIdsToInvalidate.Contains(variant.ProductId))
+                            {
+                                productIdsToInvalidate.Add(variant.ProductId);
+                            }
                         }
 
                         var cartItem = new CartItem
@@ -133,6 +143,21 @@ namespace Application.Services
 
             _unitOfWork.GetRepository<Payment>().Update(paymentRecord);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (productIdsToInvalidate.Any())
+            {
+                try
+                {
+                    await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+                    foreach (var productId in productIdsToInvalidate)
+                    {
+                        await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
+                    }
+                }
+                catch
+                {
+                }
+            }
 
             if (isSuccess && paymentRecord.Order != null)
             {

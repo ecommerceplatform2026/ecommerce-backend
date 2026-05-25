@@ -1,4 +1,6 @@
+using Application.Common.Caching;
 using Application.Interfaces.Repositories.Base;
+using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +73,8 @@ namespace Infrastructure.Services
                 return;
             }
 
+            var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
+
             _logger.LogInformation("Found {Count} expired payments to cancel.", expiredPayments.Count);
 
             foreach (var payment in expiredPayments)
@@ -81,6 +85,7 @@ namespace Infrastructure.Services
                     payment.Status = PaymentStatus.Failed;
                     unitOfWork.GetRepository<Payment>().Update(payment);
 
+                    var productIdsToInvalidate = new List<Guid>();
                     var order = payment.Order;
                     if (order != null)
                     {
@@ -96,12 +101,32 @@ namespace Infrastructure.Services
                             {
                                 variant.UpdateStock(variant.Stock + orderItem.Quantity);
                                 unitOfWork.GetRepository<ProductVariant>().Update(variant);
+
+                                if (!productIdsToInvalidate.Contains(variant.ProductId))
+                                {
+                                    productIdsToInvalidate.Add(variant.ProductId);
+                                }
                             }
                         }
                     }
 
                     await unitOfWork.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
+
+                    if (productIdsToInvalidate.Any())
+                    {
+                        try
+                        {
+                            await cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+                            foreach (var productId in productIdsToInvalidate)
+                            {
+                                await cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
 
                     _logger.LogInformation("Successfully cancelled expired order {OrderCode} and restored inventory.", payment.OrderCode);
                 }
