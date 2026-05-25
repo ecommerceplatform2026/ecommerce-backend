@@ -7,12 +7,7 @@ using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -21,15 +16,18 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly VnPaySettings _vnPaySettings;
+        private readonly INotificationService _notificationService;
 
         public CheckoutService(
-            IUnitOfWork unitOfWork, 
+            IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IOptions<VnPaySettings> vnPayOptions)
+            IOptions<VnPaySettings> vnPayOptions,
+            INotificationService notificationService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -49,13 +47,13 @@ namespace Application.Services
                 .GetQueryable()
                 .Include(p => p.Order)
                     .ThenInclude(o => o!.OrderItems)
-                .FirstOrDefaultAsync(p => p.Order != null 
-                    && p.Order.UserId == userId 
-                    && p.Order.Status == OrderStatus.Pending 
+                .FirstOrDefaultAsync(p => p.Order != null
+                    && p.Order.UserId == userId
+                    && p.Order.Status == OrderStatus.Pending
                     && p.Status == PaymentStatus.Pending
-                    && (p.Order.PaymentMethod == PaymentMethod.VNPay 
-                        || p.Order.PaymentMethod == PaymentMethod.MoMo 
-                        || p.Order.PaymentMethod == PaymentMethod.ZaloPay 
+                    && (p.Order.PaymentMethod == PaymentMethod.VNPay
+                        || p.Order.PaymentMethod == PaymentMethod.MoMo
+                        || p.Order.PaymentMethod == PaymentMethod.ZaloPay
                         || p.Order.PaymentMethod == PaymentMethod.PayOS)
                     && !p.IsDeleted, cancellationToken);
 
@@ -228,6 +226,18 @@ namespace Application.Services
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
+
+                order.OrderItems = orderItems;
+                if (order.PaymentMethod == PaymentMethod.COD)
+                {
+                    try
+                    {
+                        await _notificationService.SendOrderConfirmationAsync(order);
+                    }
+                    catch
+                    {
+                    }
+                }
 
                 var itemResponses = orderItems.Select(oi => new CheckoutItemResponse(
                     oi.Id,
