@@ -44,6 +44,7 @@ namespace Infrastructure.DependencyInjection
             });
 
             services.AddScoped<ICacheService, RedisCacheService>();
+            services.AddHostedService<PaymentTimeoutBackgroundService>();
 
             return services;
         }
