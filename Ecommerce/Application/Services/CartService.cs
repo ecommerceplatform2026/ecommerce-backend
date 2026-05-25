@@ -81,7 +81,12 @@ namespace Application.Services
                 return Result<CartItemResponse>.NotFound("Product variant not found.");
             }
 
-            if (variant.Product == null || variant.Product.Status == ProductStatus.Inactive)
+            if (variant.Product == null)
+            {
+                return Result<CartItemResponse>.NotFound("Product not found.");
+            }
+
+            if (variant.Product.Status == ProductStatus.Inactive)
             {
                 return Result<CartItemResponse>.Failure("Product is inactive or unavailable.");
             }
@@ -171,7 +176,12 @@ namespace Application.Services
                 return Result<CartItemResponse>.NotFound("Product variant not found.");
             }
 
-            if (variant.Product == null || variant.Product.Status == ProductStatus.Inactive)
+            if (variant.Product == null)
+            {
+                return Result<CartItemResponse>.NotFound("Product not found.");
+            }
+
+            if (variant.Product.Status == ProductStatus.Inactive)
             {
                 return Result<CartItemResponse>.Failure("Product is inactive or unavailable.");
             }

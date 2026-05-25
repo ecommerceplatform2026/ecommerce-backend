@@ -12,7 +12,7 @@ namespace Infrastructure.Persistence.Configurations
             builder.Property(pv => pv.SKU).IsRequired().HasMaxLength(50);
             builder.Property(pv => pv.Color).HasMaxLength(50);
             builder.Property(pv => pv.Size).HasMaxLength(20);
-            builder.Property(pv => pv.Stock).IsRequired().HasColumnType("bigint");
+            builder.Property(pv => pv.Stock).IsRequired().HasColumnType("bigint").IsConcurrencyToken();
             builder.Property(pv => pv.LowStockThreshold)
                    .IsRequired()
                    .HasColumnType("bigint")

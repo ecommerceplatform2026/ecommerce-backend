@@ -38,6 +38,11 @@ namespace Infrastructure.Repositories.Base
         {
             return await _context.Database.BeginTransactionAsync(cancellationToken);
         }
+        
+        public void ClearTracker()
+        {
+            _context.ChangeTracker.Clear();
+        }
 
 
     }
