@@ -74,7 +74,8 @@ namespace Application.Services
                 {
                     x => x.Category,
                     x => x.ProductImages,
-                    x => x.ProductVariants
+                    x => x.ProductVariants,
+                    x => x.Reviews
                 },
                 cancellationToken: cancellationToken);
 
@@ -162,6 +163,9 @@ namespace Application.Services
 
             var products = await ApplySorting(query, request.SortBy, request.SortDirection)
                 .Include(product => product.Category)
+                .Include(product => product.ProductVariants)
+                .Include(product => product.ProductImages)
+                .Include(product => product.Reviews)
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
@@ -187,7 +191,9 @@ namespace Application.Services
                         p => !p.IsDeleted,
                         cancellationToken,
                         x => x.Category,
-                        x => x.ProductVariants);
+                        x => x.ProductVariants,
+                        x => x.ProductImages,
+                        x => x.Reviews);
 
                     return products.Select(p => p.ToProductResponse()).ToList();
                 },

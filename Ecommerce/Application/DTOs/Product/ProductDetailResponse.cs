@@ -17,6 +17,8 @@ namespace Application.DTOs.Product
         public string? CategoryName { get; set; }
         public long TotalStock { get; set; }
         public string StockStatus { get; set; } = string.Empty;
+        public double AverageRating { get; set; }
+        public int ReviewCount { get; set; }
         public List<ProductImageResponse> Images { get; set; } = new();
         public List<ProductVariantResponse> Variants { get; set; } = new();
     }
