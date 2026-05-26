@@ -1,7 +1,9 @@
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Events;
+using Application.Common.Exceptions;
 using Domain.Common;
 using Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
@@ -38,7 +40,14 @@ namespace Infrastructure.Repositories.Base
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await DispatchDomainEventsAsync(cancellationToken);
-            return await _context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                return await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                throw new ConcurrencyException("A concurrency conflict occurred while saving changes.", ex);
+            }
         }
 
         private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)

@@ -1,3 +1,4 @@
+using Application.Common.Exceptions;
 using Application.Common.Response;
 using Application.Configurations;
 using Application.DTOs.Checkout;
@@ -227,7 +228,7 @@ namespace Application.Services
 
                     return Result<CheckoutResponse>.Success(response);
                 }
-                catch (Exception ex) when (ex.GetType().Name == "DbUpdateConcurrencyException")
+                catch (ConcurrencyException)
                 {
                     await transaction.RollbackAsync(cancellationToken);
                     if (attempt == maxRetryAttempts)
