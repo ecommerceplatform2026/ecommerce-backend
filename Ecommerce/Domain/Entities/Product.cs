@@ -9,7 +9,7 @@ namespace Domain.Entities
         public string Name { get; private set; } = string.Empty;
         public string? Description { get; private set; }
         public string? Material { get; private set; }
-        public long BasePrice { get; private set; }
+        public Money BasePrice { get; private set; } = null!;
         public ProductStatus Status { get; private set; }
 
         public Category Category { get; set; } = null!;
@@ -19,45 +19,45 @@ namespace Domain.Entities
 
         private Product() { }
 
-        private Product(Guid categoryId, string name, string? description, string? material, long basePrice, ProductStatus status)
+        private Product(Guid categoryId, string name, string? description, string? material, Money basePrice, ProductStatus status)
         {
             CategoryId = EnsureNotEmpty(categoryId);
             Name = NormalizeRequired(name);
             Description = description;
             Material = material;
-            BasePrice = EnsureNonNegative(basePrice);
+            BasePrice = basePrice ?? throw new ArgumentNullException(nameof(basePrice));
             Status = status;
         }
 
-        public static Product Create(Guid categoryId, string name, string? description, string? material, long basePrice, ProductStatus status)
+        public static Product Create(Guid categoryId, string name, string? description, string? material, Money basePrice, ProductStatus status)
         {
             return new Product(categoryId, name, description, material, basePrice, status);
         }
 
-        public void Update(Guid categoryId, string name, string? description, string? material, long basePrice, ProductStatus status)
+        public void Update(Guid categoryId, string name, string? description, string? material, Money basePrice, ProductStatus status)
         {
             CategoryId = EnsureNotEmpty(categoryId);
             Name = NormalizeRequired(name);
             Description = description;
             Material = material;
-            BasePrice = EnsureNonNegative(basePrice);
+            BasePrice = basePrice ?? throw new ArgumentNullException(nameof(basePrice));
             Status = status;
         }
 
         public void Deactivate() => Status = ProductStatus.Inactive;
 
-        public void AddVariant(string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
+        public void AddVariant(string sku, string? color, string? size, long stock, Money price, long lowStockThreshold)
         {
             sku = NormalizeRequired(sku);
 
-            if (ProductVariants.Any(v => v.SKU.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
+            if (ProductVariants.Any(v => v.SKU.Value.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
                 throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
 
-            var variant = ProductVariant.Create(Id, sku, color, size, stock, price, lowStockThreshold);
+            var variant = ProductVariant.Create(Id, new Sku(sku), color, size, stock, price, lowStockThreshold);
             ProductVariants.Add(variant);
         }
 
-        public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, long price, long lowStockThreshold)
+        public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, Money price, long lowStockThreshold)
         {
             sku = NormalizeRequired(sku);
 
@@ -65,10 +65,10 @@ namespace Domain.Entities
             if (variant == null)
                 throw new KeyNotFoundException("Variant not found.");
 
-            if (ProductVariants.Any(v => v.Id != variantId && v.SKU.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
+            if (ProductVariants.Any(v => v.Id != variantId && v.SKU.Value.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
                 throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
 
-            variant.Update(sku, color, size, price, lowStockThreshold);
+            variant.Update(new Sku(sku), color, size, price, lowStockThreshold);
             variant.UpdateStock(stock);
         }
 
@@ -89,12 +89,7 @@ namespace Domain.Entities
             return value.Trim();
         }
 
-        private static long EnsureNonNegative(long price)
-        {
-            if (price < 0)
-                throw new ArgumentException("Base price must be non-negative.", nameof(price));
-            return price;
-        }
+
 
         private static Guid EnsureNotEmpty(Guid guid)
         {
