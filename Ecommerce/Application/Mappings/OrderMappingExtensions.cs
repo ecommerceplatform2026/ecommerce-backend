@@ -14,9 +14,7 @@ namespace Application.Mappings
                 order.Status,
                 order.PaymentMethod,
                 order.CreatedAt,
-                order.OrderItems != null
-                    ? order.OrderItems.Select(oi => oi.ToOrderItemResponse()).ToList()
-                    : new System.Collections.Generic.List<OrderItemResponse>()
+                order.OrderItems.Select(oi => oi.ToOrderItemResponse()).ToList()
             );
         }
 
