@@ -84,16 +84,13 @@ namespace Application.Services
                 return Result<ReviewResponse>.Conflict("You have already reviewed this product for this order.");
             }
 
-            var review = new Review
-            {
-                UserId = userId,
-                ProductId = request.ProductId,
-                OrderId = request.OrderId,
-                Rating = request.Rating,
-                Title = request.Title,
-                Comment = request.Comment,
-                Status = ReviewStatus.Approved
-            };
+            var review = Review.Create(
+                userId,
+                request.ProductId,
+                request.OrderId,
+                request.Rating,
+                request.Title,
+                request.Comment);
 
             await _unitOfWork.GetRepository<Review>().AddAsync(review, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
