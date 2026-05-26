@@ -11,6 +11,9 @@ namespace Infrastructure.Persistence.Configurations
             builder.HasKey(ci => ci.Id);
             builder.Property(ci => ci.Quantity).IsRequired();
 
+            builder.HasIndex(ci => new { ci.UserId, ci.ProductVariantId })
+                   .IsUnique();
+
             builder.HasOne(ci => ci.User)
                    .WithMany(u => u.CartItems)
                    .HasForeignKey(ci => ci.UserId)

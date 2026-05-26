@@ -1,5 +1,4 @@
 using Application.DTOs.Product;
-using Application.DTOs.Product.ProductVariant;
 using Domain.Entities;
 
 namespace Application.Mappings
@@ -11,7 +10,7 @@ namespace Application.Mappings
             var variants = product.ProductVariants?
                 .Where(v => !v.IsDeleted)
                 .Select(v => v.ToProductVariantResponse())
-                .ToList() ?? new List<ProductVariantResponse>();
+                .ToList() ?? new List<Application.DTOs.Product.ProductVariants.ProductVariantResponse>();
 
             return new ProductResponse(
                 product.Id,
@@ -29,7 +28,7 @@ namespace Application.Mappings
         {
             var variants = product.ProductVariants
                 .OrderBy(variant => variant.SKU)
-                .Select(variant => new ProductVariantResponse
+                .Select(variant => new Application.DTOs.Product.ProductVariantResponse
                 {
                     Id = variant.Id,
                     SKU = variant.SKU,
@@ -93,7 +92,7 @@ namespace Application.Mappings
                 request.Status);
         }
 
-        private static string GetStockStatus(int stock)
+        private static string GetStockStatus(long stock)
         {
             return stock > 0 ? "InStock" : "OutOfStock";
         }

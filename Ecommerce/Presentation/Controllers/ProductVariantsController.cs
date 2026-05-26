@@ -1,4 +1,4 @@
-using Application.DTOs.Product.ProductVariant;
+using Application.DTOs.Product.ProductVariants;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

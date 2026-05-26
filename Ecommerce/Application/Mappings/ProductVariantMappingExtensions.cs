@@ -1,4 +1,4 @@
-using Application.DTOs.Product.ProductVariant;
+using Application.DTOs.Product.ProductVariants;
 using Domain.Entities;
 
 namespace Application.Mappings
