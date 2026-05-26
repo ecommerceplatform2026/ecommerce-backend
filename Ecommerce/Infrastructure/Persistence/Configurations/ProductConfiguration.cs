@@ -1,3 +1,4 @@
+using Domain.Common;
 using Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -12,7 +13,9 @@ namespace Infrastructure.Persistence.Configurations
             builder.Property(p => p.Name).IsRequired().HasMaxLength(200);
             builder.Property(p => p.Description);
             builder.Property(p => p.Material).HasMaxLength(100);
-            builder.Property(p => p.BasePrice).IsRequired();
+            builder.Property(p => p.BasePrice)
+                   .HasConversion(m => m.Amount, a => new Money(a, "VND"))
+                   .IsRequired();
             builder.Property(p => p.Status).IsRequired();
 
             builder.HasOne(p => p.Category)

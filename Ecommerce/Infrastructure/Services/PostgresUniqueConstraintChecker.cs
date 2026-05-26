@@ -6,9 +6,10 @@ namespace Infrastructure.Services
 {
     public class PostgresUniqueConstraintChecker : IUniqueConstraintChecker
     {
-        public bool IsUniqueViolation(DbUpdateException exception, string constraintName)
+        public bool IsUniqueViolation(Exception exception, string constraintName)
         {
-            return exception.InnerException is PostgresException postgresException
+            return exception is DbUpdateException dbUpdateException
+                && dbUpdateException.InnerException is PostgresException postgresException
                 && postgresException.SqlState == PostgresErrorCodes.UniqueViolation
                 && postgresException.ConstraintName == constraintName;
         }

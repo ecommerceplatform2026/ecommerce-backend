@@ -132,7 +132,7 @@ namespace Infrastructure.Services
                 .Replace("{OrderDate}", order.CreatedAt.ToString())
                 .Replace("{PaymentMethod}", order.PaymentMethod.ToString())
                 .Replace("{OrderStatus}", order.Status.ToString())
-                .Replace("{TotalAmount}", order.TotalAmount.ToString("N0"))
+                .Replace("{TotalAmount}", order.TotalAmount.Amount.ToString("N0"))
                 .Replace("{ItemsHtml}", itemsHtml);
         }
 
@@ -159,7 +159,7 @@ namespace Infrastructure.Services
                 .Replace("{OrderDate}", order.CreatedAt.ToString())
                 .Replace("{PaymentMethod}", order.PaymentMethod.ToString())
                 .Replace("{OrderStatus}", order.Status.ToString())
-                .Replace("{TotalAmount}", order.TotalAmount.ToString("N0"))
+                .Replace("{TotalAmount}", order.TotalAmount.Amount.ToString("N0"))
                 .Replace("{ItemsText}", itemsText);
         }
 
@@ -246,7 +246,7 @@ namespace Infrastructure.Services
                     .Replace("{VariantDetails}", variantDetails)
                     .Replace("{SKU}", sku)
                     .Replace("{Quantity}", item.Quantity.ToString())
-                    .Replace("{Price}", item.Price.ToString("N0"));
+                    .Replace("{Price}", item.Price.Amount.ToString("N0"));
                 htmlBuilder.Append(rowHtml);
 
                 var rowText = textTemplate
@@ -254,7 +254,7 @@ namespace Infrastructure.Services
                     .Replace("{VariantDetails}", variantDetails)
                     .Replace("{SKU}", sku)
                     .Replace("{Quantity}", item.Quantity.ToString())
-                    .Replace("{Price}", item.Price.ToString("N0"));
+                    .Replace("{Price}", item.Price.Amount.ToString("N0"));
                 textBuilder.Append(rowText);
             }
 

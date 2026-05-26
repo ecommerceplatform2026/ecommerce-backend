@@ -79,17 +79,17 @@ namespace Infrastructure.Services
 
             foreach (var payment in expiredPayments)
             {
-                using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+                await using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
                 try
                 {
-                    payment.Status = PaymentStatus.Failed;
+                    payment.Fail();
                     unitOfWork.GetRepository<Payment>().Update(payment);
 
                     var productIdsToInvalidate = new List<Guid>();
                     var order = payment.Order;
                     if (order != null)
                     {
-                        order.Status = OrderStatus.Cancelled;
+                        order.Cancel();
                         unitOfWork.GetRepository<Order>().Update(order);
 
                         foreach (var orderItem in order.OrderItems)
