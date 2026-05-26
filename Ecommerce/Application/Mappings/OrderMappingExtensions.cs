@@ -10,7 +10,7 @@ namespace Application.Mappings
             return new OrderResponse(
                 order.Id,
                 order.OrderCode,
-                order.TotalAmount,
+                order.TotalAmount.Amount,
                 order.Status,
                 order.PaymentMethod,
                 order.CreatedAt,
@@ -26,7 +26,7 @@ namespace Application.Mappings
                 item.Id,
                 item.ProductVariantId,
                 item.Quantity,
-                item.Price,
+                item.Price.Amount,
                 item.ProductSnapshot
             );
         }

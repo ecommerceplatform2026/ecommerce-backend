@@ -1,4 +1,3 @@
-using Application.Common.Caching;
 using Application.Common.Response;
 using Application.Configurations;
 using Application.DTOs.Checkout;
@@ -6,7 +5,7 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
+using Domain.Common;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
@@ -17,21 +16,15 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly VnPaySettings _vnPaySettings;
-        private readonly INotificationService _notificationService;
-        private readonly ICacheService _cacheService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IOptions<VnPaySettings> vnPayOptions,
-            INotificationService notificationService,
-            ICacheService cacheService)
+            IOptions<VnPaySettings> vnPayOptions)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
-            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -53,10 +46,7 @@ namespace Application.Services
                 _unitOfWork.ClearTracker();
 
                 var existingPayment = await _unitOfWork.GetRepository<Payment>()
-                    .GetQueryable()
-                    .Include(p => p.Order)
-                        .ThenInclude(o => o!.OrderItems)
-                    .FirstOrDefaultAsync(p => p.Order != null
+                    .FindAsync(p => p.Order != null
                         && p.Order.UserId == userId
                         && p.Order.Status == OrderStatus.Pending
                         && p.Status == PaymentStatus.Pending
@@ -64,7 +54,11 @@ namespace Application.Services
                             || p.Order.PaymentMethod == PaymentMethod.MoMo
                             || p.Order.PaymentMethod == PaymentMethod.ZaloPay
                             || p.Order.PaymentMethod == PaymentMethod.PayOS)
-                        && !p.IsDeleted, cancellationToken);
+                        && !p.IsDeleted,
+                        asNoTracking: false,
+                        cancellationToken,
+                        p => p.Order!,
+                        p => p.Order!.OrderItems);
 
                 if (existingPayment != null)
                 {
@@ -72,13 +66,13 @@ namespace Application.Services
                         oi.Id,
                         oi.ProductVariantId,
                         oi.Quantity,
-                        oi.Price,
+                        oi.Price.Amount,
                         oi.ProductSnapshot)).ToList();
 
                     var response = new CheckoutResponse(
                         existingPayment.OrderId,
                         existingPayment.OrderCode,
-                        existingPayment.Order.TotalAmount,
+                        existingPayment.Order.TotalAmount.Amount,
                         existingPayment.Order.Status,
                         existingPayment.Order.PaymentMethod,
                         itemResponses,
@@ -89,11 +83,11 @@ namespace Application.Services
                 }
 
                 var cartItems = await _unitOfWork.GetRepository<CartItem>()
-                    .GetQueryable()
-                    .Include(ci => ci.ProductVariant!)
-                        .ThenInclude(pv => pv.Product!)
-                    .Where(ci => ci.UserId == userId)
-                    .ToListAsync(cancellationToken);
+                    .GetAllAsync(
+                        ci => ci.UserId == userId,
+                        cancellationToken,
+                        ci => ci.ProductVariant!,
+                        ci => ci.ProductVariant!.Product!);
 
                 if (cartItems == null || !cartItems.Any())
                 {
@@ -125,7 +119,7 @@ namespace Application.Services
                     }
                 }
 
-                using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+                await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
                 try
                 {
                     int orderCode;
@@ -135,26 +129,15 @@ namespace Application.Services
                     do
                     {
                         orderCode = random.Next(100000, 999999);
-                        codeExists = await _unitOfWork.GetRepository<Order>()
-                            .GetQueryable()
-                            .AnyAsync(o => o.OrderCode == orderCode, cancellationToken);
+                        codeExists = (await _unitOfWork.GetRepository<Order>()
+                            .TotalAsync(o => o.OrderCode == orderCode)) > 0;
                         attempts++;
                     } while (codeExists && attempts < 10);
 
-                    long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price * ci.Quantity);
+                    long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price.Amount * ci.Quantity);
 
-                    var order = new Order
-                    {
-                        UserId = userId,
-                        TotalAmount = totalAmount,
-                        Status = OrderStatus.Pending,
-                        OrderCode = orderCode,
-                        PaymentMethod = request.PaymentMethod
-                    };
+                    var order = Order.Create(userId, orderCode, request.PaymentMethod);
 
-                    await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
-
-                    var orderItems = new List<OrderItem>();
                     var productIdsToInvalidate = new List<Guid>();
 
                     foreach (var cartItem in cartItems)
@@ -183,20 +166,12 @@ namespace Application.Services
                         };
                         var snapshotJson = JsonSerializer.Serialize(snapshotObj);
 
-                        var orderItem = new OrderItem
-                        {
-                            OrderId = order.Id,
-                            ProductVariantId = cartItem.ProductVariantId,
-                            Quantity = cartItem.Quantity,
-                            Price = variant.Price,
-                            ProductSnapshot = snapshotJson
-                        };
-
-                        await _unitOfWork.GetRepository<OrderItem>().AddAsync(orderItem, cancellationToken);
-                        orderItems.Add(orderItem);
+                        order.AddItem(cartItem.ProductVariantId, cartItem.Quantity, variant.Price, snapshotJson);
 
                         _unitOfWork.GetRepository<CartItem>().Remove(cartItem);
                     }
+
+                    await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
 
                     string? checkoutUrl = null;
                     string paymentLinkId = "";
@@ -226,57 +201,24 @@ namespace Application.Services
                         checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
                     }
 
-                    var payment = new Payment
-                    {
-                        OrderId = order.Id,
-                        PaymentLinkId = paymentLinkId,
-                        OrderCode = orderCode,
-                        CheckoutUrl = checkoutUrl,
-                        Amount = totalAmount,
-                        Currency = "VND",
-                        Status = PaymentStatus.Pending
-                    };
+                    var payment = Payment.Create(order.Id, orderCode, order.TotalAmount, paymentLinkId, checkoutUrl);
 
                     await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
 
                     await _unitOfWork.SaveChangesAsync(cancellationToken);
                     await transaction.CommitAsync(cancellationToken);
 
-                    try
-                    {
-                        await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
-                        foreach (var productId in productIdsToInvalidate)
-                        {
-                            await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
-                        }
-                    }
-                    catch
-                    {
-                    }
-
-                    order.OrderItems = orderItems;
-                    if (order.PaymentMethod == PaymentMethod.COD)
-                    {
-                        try
-                        {
-                            await _notificationService.SendOrderConfirmationAsync(order);
-                        }
-                        catch
-                        {
-                        }
-                    }
-
-                    var itemResponses = orderItems.Select(oi => new CheckoutItemResponse(
+                    var itemResponses = order.OrderItems.Select(oi => new CheckoutItemResponse(
                         oi.Id,
                         oi.ProductVariantId,
                         oi.Quantity,
-                        oi.Price,
+                        oi.Price.Amount,
                         oi.ProductSnapshot)).ToList();
 
                     var response = new CheckoutResponse(
                         order.Id,
                         order.OrderCode,
-                        order.TotalAmount,
+                        order.TotalAmount.Amount,
                         order.Status,
                         order.PaymentMethod,
                         itemResponses,
@@ -285,7 +227,7 @@ namespace Application.Services
 
                     return Result<CheckoutResponse>.Success(response);
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (Exception ex) when (ex.GetType().Name == "DbUpdateConcurrencyException")
                 {
                     await transaction.RollbackAsync(cancellationToken);
                     if (attempt == maxRetryAttempts)

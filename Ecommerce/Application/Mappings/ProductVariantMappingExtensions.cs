@@ -10,12 +10,12 @@ namespace Application.Mappings
             return new ProductVariantResponse(
                 variant.Id,
                 variant.ProductId,
-                variant.SKU,
+                variant.SKU.Value,
                 variant.Color,
                 variant.Size,
                 variant.Stock,
                 variant.LowStockThreshold,
-                variant.Price,
+                variant.Price.Amount,
                 variant.IsLowStock(),
                 variant.IsOutOfStock());
         }

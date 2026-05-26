@@ -4,7 +4,10 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
-using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -32,24 +35,21 @@ namespace Application.Services
                 return Result<PagedResult<OrderResponse>>.Unauthorized("User is not authenticated.");
             }
 
-            var query = _unitOfWork.GetRepository<Order>()
-                .GetQueryable()
-                .AsNoTracking()
-                .Where(o => o.UserId == userId && !o.IsDeleted);
-
+            System.Linq.Expressions.Expression<Func<Order, bool>> filter = o => o.UserId == userId && !o.IsDeleted;
             if (request.Status.HasValue)
             {
-                query = query.Where(o => o.Status == request.Status.Value);
+                filter = o => o.UserId == userId && !o.IsDeleted && o.Status == request.Status.Value;
             }
 
-            var totalCount = await query.CountAsync(cancellationToken);
-
-            var orders = await query
-                .OrderByDescending(o => o.CreatedAt)
-                .Include(o => o.OrderItems)
-                .Skip((request.Page - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToListAsync(cancellationToken);
+            var (orders, totalCount) = await _unitOfWork.GetRepository<Order>()
+                .GetPagedAsync(
+                    page: request.Page,
+                    pageSize: request.PageSize,
+                    filter: filter,
+                    orderBy: o => o.CreatedAt,
+                    isDescending: true,
+                    cancellationToken: cancellationToken,
+                    o => o.OrderItems);
 
             var result = new PagedResult<OrderResponse>
             {

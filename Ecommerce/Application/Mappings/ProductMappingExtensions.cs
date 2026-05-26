@@ -1,4 +1,5 @@
 using Application.DTOs.Product;
+using Domain.Common;
 using Domain.Entities;
 using Domain.Enums;
 
@@ -18,7 +19,7 @@ namespace Application.Mappings
                 .OrderBy(image => image.CreatedAt)
                 .FirstOrDefault()?.ImageUrl;
 
-            var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice).ToList();
+            var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice.Amount).ToList();
             var minPrice = prices.Min();
             var maxPrice = prices.Max();
             var totalStock = variants.Sum(variant => variant.Stock);
@@ -37,7 +38,7 @@ namespace Application.Mappings
                 product.Name,
                 product.Description,
                 product.Material,
-                product.BasePrice,
+                product.BasePrice.Amount,
                 product.Status,
                 product.Category?.Name,
                 imageUrl,
@@ -54,20 +55,20 @@ namespace Application.Mappings
         {
             var variants = product.ProductVariants?
                 .Where(v => !v.IsDeleted)
-                .OrderBy(variant => variant.SKU)
+                .OrderBy(variant => variant.SKU.Value)
                 .Select(variant => new Application.DTOs.Product.ProductVariantResponse
                 {
                     Id = variant.Id,
-                    SKU = variant.SKU,
+                    SKU = variant.SKU.Value,
                     Color = variant.Color,
                     Size = variant.Size,
                     Stock = variant.Stock,
                     StockStatus = GetStockStatus(variant.Stock),
-                    Price = variant.Price
+                    Price = variant.Price.Amount
                 })
                 .ToList() ?? new List<Application.DTOs.Product.ProductVariantResponse>();
 
-            var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice).ToList();
+            var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice.Amount).ToList();
             var totalStock = variants.Sum(variant => variant.Stock);
 
             var approvedReviews = product.Reviews?
@@ -84,7 +85,7 @@ namespace Application.Mappings
                 Name = product.Name,
                 Description = product.Description,
                 Material = product.Material,
-                BasePrice = product.BasePrice,
+                BasePrice = product.BasePrice.Amount,
                 Price = prices.Min(),
                 MinPrice = prices.Min(),
                 MaxPrice = prices.Max(),
@@ -114,7 +115,7 @@ namespace Application.Mappings
                 request.Name,
                 request.Description,
                 request.Material,
-                request.BasePrice,
+                new Money(request.BasePrice, "VND"),
                 request.Status);
         }
 
@@ -125,7 +126,7 @@ namespace Application.Mappings
                 request.Name,
                 request.Description,
                 request.Material,
-                request.BasePrice,
+                new Money(request.BasePrice, "VND"),
                 request.Status);
         }
 

@@ -5,7 +5,10 @@ using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -48,10 +51,12 @@ namespace Application.Services
                 return Result<ReviewResponse>.NotFound("Product not found.");
             }
 
-            var order = await _unitOfWork.GetRepository<Order>().GetQueryable()
-                .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.ProductVariant)
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.UserId == userId, cancellationToken);
+            var order = await _unitOfWork.GetRepository<Order>().FindAsync(
+                o => o.Id == request.OrderId && o.UserId == userId,
+                false,
+                cancellationToken,
+                o => o.OrderItems,
+                o => o.OrderItems.Select(oi => oi.ProductVariant!));
 
             if (order == null)
             {

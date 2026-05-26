@@ -4,7 +4,6 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
-using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services
 {
@@ -29,15 +28,15 @@ namespace Application.Services
             if (!Guid.TryParse(currentUserId, out var userId))
                 return Result<List<AddressResponse>>.Unauthorized("Unauthorized.");
 
-            var addresses = await _unitOfWork
+            var rawAddresses = await _unitOfWork
                 .GetRepository<UserAddress>()
-                .GetQueryable()
-                .AsNoTracking()
-                .Where(address => address.UserId == userId)
+                .GetAllAsync(address => address.UserId == userId, cancellationToken);
+
+            var addresses = rawAddresses
                 .OrderByDescending(address => address.IsDefault)
                 .ThenByDescending(address => address.CreatedAt)
                 .Select(address => address.ToAddressResponse())
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             return Result<List<AddressResponse>>.Success(addresses);
         }
@@ -53,10 +52,9 @@ namespace Application.Services
 
             var addressRepository = _unitOfWork.GetRepository<UserAddress>();
             var address = await addressRepository
-                .GetQueryable()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
+                .FindAsync(
                     item => item.Id == addressId && item.UserId == userId,
+                    asNoTracking: true,
                     cancellationToken);
 
             if (address == null)
