@@ -1,3 +1,4 @@
+using Application.Common.Caching;
 using Application.Common.Response;
 using Application.DTOs.Review;
 using Application.Interfaces.Repositories.Base;
@@ -15,15 +16,18 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IUniqueConstraintChecker _uniqueConstraintChecker;
+        private readonly ICacheService _cacheService;
 
         public ReviewService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IUniqueConstraintChecker uniqueConstraintChecker)
+            IUniqueConstraintChecker uniqueConstraintChecker,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _uniqueConstraintChecker = uniqueConstraintChecker ?? throw new ArgumentNullException(nameof(uniqueConstraintChecker));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
         }
 
         private Result<Guid> GetCurrentUserId()
@@ -109,6 +113,9 @@ namespace Application.Services
             {
                 return Result<ReviewResponse>.Conflict("You have already reviewed this product for this order.");
             }
+
+            await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+            await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(request.ProductId), cancellationToken);
 
             return Result<ReviewResponse>.Success(review.ToReviewResponse());
         }
