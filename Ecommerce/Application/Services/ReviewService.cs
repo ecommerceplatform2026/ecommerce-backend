@@ -1,6 +1,7 @@
 using Application.Common.Response;
 using Application.DTOs.Review;
 using Application.Interfaces.Repositories.Base;
+using Application.Interfaces.Security;
 using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
@@ -13,13 +14,16 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IUniqueConstraintChecker _uniqueConstraintChecker;
 
         public ReviewService(
             IUnitOfWork unitOfWork,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            IUniqueConstraintChecker uniqueConstraintChecker)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+            _uniqueConstraintChecker = uniqueConstraintChecker ?? throw new ArgumentNullException(nameof(uniqueConstraintChecker));
         }
 
         private Result<Guid> GetCurrentUserId()
@@ -34,6 +38,11 @@ namespace Application.Services
 
         public async Task<Result<ReviewResponse>> CreateReviewAsync(CreateReviewRequest request, CancellationToken cancellationToken = default)
         {
+            if (request == null)
+            {
+                return Result<ReviewResponse>.Failure("Request cannot be null.");
+            }
+
             var userResult = GetCurrentUserId();
             if (!userResult.IsSuccess)
             {
@@ -49,13 +58,14 @@ namespace Application.Services
             }
 
             var order = await _unitOfWork.GetRepository<Order>().GetQueryable()
+                .AsNoTracking()
                 .Include(o => o.OrderItems)
                     .ThenInclude(oi => oi.ProductVariant)
                 .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.UserId == userId, cancellationToken);
 
             if (order == null)
             {
-                return Result<ReviewResponse>.Failure("Order was not found or does not belong to the user.");
+                return Result<ReviewResponse>.NotFound("Order was not found or does not belong to the user.");
             }
 
             if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Cancelled)
@@ -90,8 +100,15 @@ namespace Application.Services
                 Status = ReviewStatus.Approved
             };
 
-            await _unitOfWork.GetRepository<Review>().AddAsync(review, cancellationToken);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _unitOfWork.GetRepository<Review>().AddAsync(review, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, "IX_Reviews_UserId_OrderId_ProductId"))
+            {
+                return Result<ReviewResponse>.Conflict("You have already reviewed this product for this order.");
+            }
 
             return Result<ReviewResponse>.Success(review.ToReviewResponse());
         }
