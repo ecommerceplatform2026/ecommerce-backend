@@ -27,64 +27,72 @@ namespace Application.Services
                 return Result<CheckoutResponse>.Failure("Request cannot be null.");
             }
 
+            if (!Enum.IsDefined(typeof(PaymentMethod), request.PaymentMethod))
+            {
+                return Result<CheckoutResponse>.Failure("Unsupported or invalid payment method.");
+            }
+
             var userIdStr = _currentUserService.GetUserIdOrNull();
             if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
             {
                 return Result<CheckoutResponse>.Unauthorized("User is not authenticated.");
             }
 
-            var cartItems = await _unitOfWork.GetRepository<CartItem>()
-                .GetQueryable()
-                .Include(ci => ci.ProductVariant!)
-                    .ThenInclude(pv => pv.Product!)
-                .Where(ci => ci.UserId == userId)
-                .ToListAsync(cancellationToken);
-
-            if (cartItems == null || !cartItems.Any())
-            {
-                return Result<CheckoutResponse>.Failure("Cart is empty.");
-            }
-
-            foreach (var cartItem in cartItems)
-            {
-                var variant = cartItem.ProductVariant;
-                if (variant == null)
-                {
-                    return Result<CheckoutResponse>.Failure("One or more items in the cart are invalid.");
-                }
-
-                var product = variant.Product;
-                if (product == null)
-                {
-                    return Result<CheckoutResponse>.Failure("One or more items in the cart are invalid.");
-                }
-
-                if (product.Status == ProductStatus.Inactive)
-                {
-                    return Result<CheckoutResponse>.Failure($"Product '{product.Name}' is inactive or unavailable.");
-                }
-
-                if (variant.IsOutOfStock() || variant.Stock < cartItem.Quantity)
-                {
-                    return Result<CheckoutResponse>.Failure($"Insufficient stock for '{product.Name}' ({variant.SKU}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
-                }
-            }
-
-            using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
             try
             {
+                var cartItems = await _unitOfWork.GetRepository<CartItem>()
+                    .GetQueryable()
+                    .Include(ci => ci.ProductVariant!)
+                        .ThenInclude(pv => pv.Product!)
+                    .Where(ci => ci.UserId == userId)
+                    .ToListAsync(cancellationToken);
+
+                if (!cartItems.Any())
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return Result<CheckoutResponse>.Failure("Cart is empty.");
+                }
+
+                foreach (var cartItem in cartItems)
+                {
+                    var variant = cartItem.ProductVariant;
+                    if (variant == null || variant.Product == null)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return Result<CheckoutResponse>.Failure("One or more items in the cart are invalid.");
+                    }
+
+                    if (variant.Product.Status == ProductStatus.Inactive)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return Result<CheckoutResponse>.Failure($"Product '{variant.Product.Name}' is inactive or unavailable.");
+                    }
+
+                    if (variant.IsOutOfStock() || variant.Stock < cartItem.Quantity)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        return Result<CheckoutResponse>.Failure($"Insufficient stock for '{variant.Product.Name}' ({variant.SKU}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
+                    }
+                }
+
                 int orderCode;
-                var random = new Random();
                 bool codeExists;
                 int attempts = 0;
                 do
                 {
-                    orderCode = random.Next(100000, 999999);
+                    orderCode = Random.Shared.Next(100000, 999999);
                     codeExists = await _unitOfWork.GetRepository<Order>()
                         .GetQueryable()
                         .AnyAsync(o => o.OrderCode == orderCode, cancellationToken);
                     attempts++;
                 } while (codeExists && attempts < 10);
+
+                if (codeExists)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return Result<CheckoutResponse>.Failure("Unable to generate a unique order code. Please retry checkout.");
+                }
 
                 long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price * ci.Quantity);
 
@@ -107,7 +115,6 @@ namespace Application.Services
                     var product = variant.Product!;
 
                     variant.UpdateStock(variant.Stock - cartItem.Quantity);
-                    _unitOfWork.GetRepository<ProductVariant>().Update(variant);
 
                     var snapshotObj = new
                     {
@@ -157,9 +164,10 @@ namespace Application.Services
 
                 return Result<CheckoutResponse>.Success(response);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return Result<CheckoutResponse>.Failure($"An error occurred during checkout: {ex.Message}");
+                await transaction.RollbackAsync(cancellationToken);
+                return Result<CheckoutResponse>.Failure("An error occurred during checkout. Please try again.");
             }
         }
     }
