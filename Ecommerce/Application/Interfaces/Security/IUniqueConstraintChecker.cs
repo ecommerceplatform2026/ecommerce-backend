@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+using System;
 
 namespace Application.Interfaces.Security
 {
     public interface IUniqueConstraintChecker
     {
-        bool IsUniqueViolation(DbUpdateException exception, string constraintName);
+        bool IsUniqueViolation(Exception exception, string constraintName);
     }
 }

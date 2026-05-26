@@ -1,5 +1,6 @@
 using Domain.Common;
-using Microsoft.EntityFrameworkCore.Storage;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Interfaces.Repositories.Base
 {
@@ -7,9 +8,8 @@ namespace Application.Interfaces.Repositories.Base
     {
         IGenericRepository<T> GetRepository<T>() where T : BaseEntity;
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
-        Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
+        Task<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
         bool HasActiveTransaction { get; }
         void ClearTracker();
-
     }
 }
