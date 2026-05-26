@@ -59,18 +59,28 @@ namespace Infrastructure.Repositories
             }
 
             // 5. Top selling products sold within the specified date range
-            var topSellingProducts = await validOrdersQuery
+            var orderItems = await validOrdersQuery
                 .SelectMany(o => o.OrderItems)
                 .Where(oi => !oi.IsDeleted && oi.ProductVariant != null && oi.ProductVariant.Product != null)
-                .GroupBy(oi => new { oi.ProductVariant!.ProductId, oi.ProductVariant.Product.Name })
+                .Select(oi => new
+                {
+                    oi.ProductVariant!.ProductId,
+                    ProductName = oi.ProductVariant.Product.Name,
+                    oi.Quantity,
+                    oi.Price
+                })
+                .ToListAsync(cancellationToken);
+
+            var topSellingProducts = orderItems
+                .GroupBy(oi => new { oi.ProductId, oi.ProductName })
                 .Select(g => new TopSellingProductResponse(
                     g.Key.ProductId,
-                    g.Key.Name,
+                    g.Key.ProductName,
                     g.Sum(oi => (long)oi.Quantity),
                     g.Sum(oi => oi.Price.Amount * oi.Quantity)))
                 .OrderByDescending(x => x.TotalQuantitySold)
                 .Take(5)
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             // 6. Low stock variants monitoring (current real-time snapshot)
             var lowStockVariants = await _context.Set<ProductVariant>()

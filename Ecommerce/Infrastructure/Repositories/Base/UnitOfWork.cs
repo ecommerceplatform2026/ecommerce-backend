@@ -46,7 +46,8 @@ namespace Infrastructure.Repositories.Base
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                throw new ConcurrencyException("A concurrency conflict occurred while saving changes.", ex);
+                var entryDetails = string.Join("; ", ex.Entries.Select(e => $"{e.Entity.GetType().Name} (State: {e.State})"));
+                throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}", ex);
             }
         }
 
