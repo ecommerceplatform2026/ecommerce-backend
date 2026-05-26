@@ -82,7 +82,7 @@ namespace Application.Services
                 }
 
                 var cartItems = await _unitOfWork.GetRepository<CartItem>()
-                    .GetAllAsync(
+                    .GetAllTrackedAsync(
                         ci => ci.UserId == userId,
                         cancellationToken,
                         ci => ci.ProductVariant!,
