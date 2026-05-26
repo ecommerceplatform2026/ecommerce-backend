@@ -1,13 +1,11 @@
 using Application.Common.Exceptions;
 using Application.Common.Response;
-using Application.Configurations;
 using Application.DTOs.Checkout;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Common;
-using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace Application.Services
@@ -16,16 +14,16 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
-        private readonly VnPaySettings _vnPaySettings;
+        private readonly IVnPayService _vnPayService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IOptions<VnPaySettings> vnPayOptions)
+            IVnPayService vnPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
-            _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
+            _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -180,21 +178,7 @@ namespace Application.Services
                     if (request.PaymentMethod == PaymentMethod.VNPay)
                     {
                         paymentLinkId = Guid.NewGuid().ToString();
-                        var vnPay = new VnPayLibrary();
-                        vnPay.AddRequestData("vnp_Version", "2.1.0");
-                        vnPay.AddRequestData("vnp_Command", "pay");
-                        vnPay.AddRequestData("vnp_TmnCode", _vnPaySettings.TmnCode);
-                        vnPay.AddRequestData("vnp_Amount", (totalAmount * 100).ToString());
-                        vnPay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
-                        vnPay.AddRequestData("vnp_CurrCode", "VND");
-                        vnPay.AddRequestData("vnp_IpAddr", "127.0.0.1");
-                        vnPay.AddRequestData("vnp_Locale", "vn");
-                        vnPay.AddRequestData("vnp_OrderInfo", $"Thanh toan don hang {orderCode}");
-                        vnPay.AddRequestData("vnp_OrderType", "other");
-                        vnPay.AddRequestData("vnp_ReturnUrl", _vnPaySettings.ReturnUrl);
-                        vnPay.AddRequestData("vnp_TxnRef", orderCode.ToString());
-
-                        checkoutUrl = vnPay.CreateRequestUrl(_vnPaySettings.PaymentUrl, _vnPaySettings.HashSecret);
+                        checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
                     }
                     else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
                     {

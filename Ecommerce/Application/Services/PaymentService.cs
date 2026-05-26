@@ -1,26 +1,24 @@
 using Application.Common.Caching;
 using Application.Common.Response;
-using Application.Configurations;
 using Application.DTOs.Payment;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.Extensions.Options;
 
 namespace Application.Services
 {
     public sealed class PaymentService : IPaymentService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly VnPaySettings _vnPaySettings;
+        private readonly IVnPayService _vnPayService;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
-            IOptions<VnPaySettings> vnPayOptions)
+            IVnPayService vnPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
-            _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
+            _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -30,35 +28,11 @@ namespace Application.Services
                 return Result<PaymentResponse>.Failure("Invalid query parameters.");
             }
 
-            var vnPay = new VnPayLibrary();
-            foreach (var kv in queryParameters)
+            var isValidCallback = _vnPayService.ValidateCallback(queryParameters, out var orderCode, out var isSuccess);
+            if (!isValidCallback)
             {
-                if (!string.IsNullOrEmpty(kv.Key) && kv.Key.StartsWith("vnp_"))
-                {
-                    vnPay.AddResponseData(kv.Key, kv.Value);
-                }
+                return Result<PaymentResponse>.Failure("Invalid callback data or signature.");
             }
-
-            var vnpSecureHash = queryParameters.TryGetValue("vnp_SecureHash", out var secureHash) ? secureHash : string.Empty;
-            if (string.IsNullOrEmpty(vnpSecureHash))
-            {
-                return Result<PaymentResponse>.Failure("Missing secure hash.");
-            }
-
-            var isValidSignature = vnPay.ValidateSignature(vnpSecureHash, _vnPaySettings.HashSecret);
-            if (!isValidSignature)
-            {
-                return Result<PaymentResponse>.Failure("Invalid signature.");
-            }
-
-            var txnRef = vnPay.GetResponseData("vnp_TxnRef");
-            if (!int.TryParse(txnRef, out var orderCode))
-            {
-                return Result<PaymentResponse>.Failure("Invalid transaction reference.");
-            }
-
-            var responseCode = vnPay.GetResponseData("vnp_ResponseCode");
-            var isSuccess = responseCode == "00";
 
             var paymentRecord = await _unitOfWork.GetRepository<Payment>()
                 .FindAsync(
