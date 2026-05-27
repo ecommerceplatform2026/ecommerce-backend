@@ -9,6 +9,7 @@ namespace Infrastructure.Persistence.Configurations
         public void Configure(EntityTypeBuilder<Review> builder)
         {
             builder.HasKey(r => r.Id);
+            builder.HasIndex(r => new { r.UserId, r.OrderId, r.ProductId }).IsUnique();
             builder.Property(r => r.Rating).IsRequired();
             builder.Property(r => r.Title).HasMaxLength(200);
             builder.Property(r => r.Comment);
