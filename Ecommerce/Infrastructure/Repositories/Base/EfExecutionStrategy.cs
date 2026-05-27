@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Application.Interfaces.Repositories.Base;
 
 namespace Infrastructure.Repositories.Base
