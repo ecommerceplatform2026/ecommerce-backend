@@ -22,6 +22,8 @@ namespace Application.Interfaces.Repositories.Base
 
         Task<T?> FindAsync(Expression<Func<T, bool>> predicate, bool asNoTracking = true, CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes);
 
+        Task<T?> FindAsyncWithStringIncludes(Expression<Func<T, bool>> predicate, bool asNoTracking = true, CancellationToken cancellationToken = default, params string[] includes);
+
         Task AddAsync(T entity, CancellationToken cancellationToken = default);
 
         void Update(T entity);

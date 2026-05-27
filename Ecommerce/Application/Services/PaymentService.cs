@@ -40,13 +40,13 @@ namespace Application.Services
             }
 
             var paymentRecord = await _unitOfWork.GetRepository<Payment>()
-                .FindAsync(
+                .FindAsyncWithStringIncludes(
                     p => p.OrderCode == orderCode,
                     asNoTracking: false,
                     cancellationToken,
-                    p => p.Order!,
-                    p => p.Order!.OrderItems,
-                    p => p.Order!.OrderItems.Select(oi => oi.ProductVariant!));
+                    "Order",
+                    "Order.OrderItems",
+                    "Order.OrderItems.ProductVariant");
 
             if (paymentRecord == null)
             {
