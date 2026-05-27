@@ -17,17 +17,10 @@ namespace Application.Services
             _dashboardRepository = dashboardRepository ?? throw new ArgumentNullException(nameof(dashboardRepository));
         }
 
-        public async Task<Result<DashboardSummaryResponse>> GetDashboardSummaryAsync(DashboardRequest request, CancellationToken cancellationToken)
+        public async Task<Result<DashboardSummaryResponse>> GetDashboardSummaryAsync(DashboardRequest request, CancellationToken cancellationToken = default)
         {
-            try
-            {
-                var summary = await _dashboardRepository.GetDashboardSummaryAsync(request, cancellationToken);
-                return Result<DashboardSummaryResponse>.Success(summary);
-            }
-            catch (Exception ex)
-            {
-                return Result<DashboardSummaryResponse>.Failure($"An error occurred while loading dashboard statistics: {ex.Message}");
-            }
+            var summary = await _dashboardRepository.GetDashboardSummaryAsync(request, cancellationToken);
+            return Result<DashboardSummaryResponse>.Success(summary);
         }
     }
 }

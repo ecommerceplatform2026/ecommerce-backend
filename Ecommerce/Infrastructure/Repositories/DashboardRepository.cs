@@ -34,7 +34,16 @@ namespace Infrastructure.Repositories
 
             if (request.EndDate.HasValue)
             {
-                orderQuery = orderQuery.Where(o => o.CreatedAt <= request.EndDate.Value);
+                var endDate = request.EndDate.Value;
+                if (endDate.TimeOfDay == TimeSpan.Zero)
+                {
+                    var exclusiveEndDate = endDate.Date.AddDays(1);
+                    orderQuery = orderQuery.Where(o => o.CreatedAt < exclusiveEndDate);
+                }
+                else
+                {
+                    orderQuery = orderQuery.Where(o => o.CreatedAt <= endDate);
+                }
             }
 
             // 2. Count total orders in the date range

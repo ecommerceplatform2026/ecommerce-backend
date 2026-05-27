@@ -51,7 +51,9 @@ namespace Application.Services
                         true,
                         cancellationToken,
                         x => x.Category,
-                        x => x.ProductVariants);
+                        x => x.ProductVariants,
+                        x => x.ProductImages,
+                        x => x.Reviews);
 
                     return product?.ToProductResponse();
                 },

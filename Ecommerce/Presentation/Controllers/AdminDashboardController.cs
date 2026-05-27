@@ -23,7 +23,11 @@ namespace Presentation.Controllers
         {
             if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value)
             {
-                return BadRequest("StartDate cannot be after EndDate.");
+                return BadRequest(new Common.Responses.ApiResponse<object>
+                {
+                    Success = false,
+                    Errors = new List<string> { "StartDate cannot be after EndDate." }
+                });
             }
 
             var result = await _dashboardService.GetDashboardSummaryAsync(request, cancellationToken);

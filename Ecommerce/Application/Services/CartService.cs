@@ -46,7 +46,10 @@ namespace Application.Services
                     ci => ci.ProductVariant!.Product!,
                     ci => ci.ProductVariant!.Product!.ProductImages);
 
-            var response = cartItems.Select(MapToResponse).ToList();
+            var response = cartItems
+                .Where(ci => ci.ProductVariant != null && ci.ProductVariant.Product != null)
+                .Select(MapToResponse)
+                .ToList();
             return Result<List<CartItemResponse>>.Success(response);
         }
 
@@ -138,7 +141,12 @@ namespace Application.Services
                     ci => ci.ProductVariant!.Product!,
                     ci => ci.ProductVariant!.Product!.ProductImages);
 
-            return Result<CartItemResponse>.Success(MapToResponse(savedItem!));
+            if (savedItem == null)
+            {
+                return Result<CartItemResponse>.Failure("Cart item not found after save.");
+            }
+
+            return Result<CartItemResponse>.Success(MapToResponse(savedItem));
         }
 
         public async Task<Result<CartItemResponse>> UpdateCartItemAsync(Guid variantId, UpdateCartItemRequest request, CancellationToken cancellationToken = default)
@@ -209,7 +217,12 @@ namespace Application.Services
                     ci => ci.ProductVariant!.Product!,
                     ci => ci.ProductVariant!.Product!.ProductImages);
 
-            return Result<CartItemResponse>.Success(MapToResponse(savedItem!));
+            if (savedItem == null)
+            {
+                return Result<CartItemResponse>.Failure("Cart item could not be loaded after update.");
+            }
+
+            return Result<CartItemResponse>.Success(MapToResponse(savedItem));
         }
 
         public async Task<Result<bool>> RemoveCartItemAsync(Guid variantId, CancellationToken cancellationToken = default)
@@ -254,7 +267,9 @@ namespace Application.Services
             var existingCartItems = await _unitOfWork.GetRepository<CartItem>()
                 .GetAllAsync(ci => ci.UserId == userId, cancellationToken);
 
-            var existingItemsDict = existingCartItems.ToDictionary(ci => ci.ProductVariantId);
+            var existingItemsDict = existingCartItems
+                .GroupBy(ci => ci.ProductVariantId)
+                .ToDictionary(g => g.Key, g => g.First());
 
             foreach (var guestItem in request.Items)
             {
@@ -311,24 +326,24 @@ namespace Application.Services
 
         private static CartItemResponse MapToResponse(CartItem item)
         {
-            var variant = item.ProductVariant!;
-            var product = variant.Product!;
-            var imageUrl = product.ProductImages?.FirstOrDefault()?.ImageUrl;
+            var variant = item.ProductVariant;
+            var product = variant?.Product;
+            var imageUrl = product?.ProductImages?.FirstOrDefault()?.ImageUrl;
 
             return new CartItemResponse(
                 item.Id,
                 item.ProductVariantId,
-                product.Id,
-                product.Name,
+                product?.Id ?? Guid.Empty,
+                product?.Name ?? "Deleted Product",
                 imageUrl,
-                variant.SKU.Value,
-                variant.Color,
-                variant.Size,
-                variant.Price.Amount,
+                variant?.SKU?.Value ?? "N/A",
+                variant?.Color,
+                variant?.Size,
+                variant?.Price?.Amount ?? 0,
                 item.Quantity,
-                variant.Stock,
-                variant.IsLowStock(),
-                variant.IsOutOfStock());
+                variant?.Stock ?? 0,
+                variant?.IsLowStock() ?? false,
+                variant?.IsOutOfStock() ?? true);
         }
     }
 }
