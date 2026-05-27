@@ -1,4 +1,4 @@
-﻿using Domain.Common;
+using Domain.Common;
 using System.Linq.Expressions;
 
 namespace Application.Interfaces.Repositories.Base
@@ -10,6 +10,8 @@ namespace Application.Interfaces.Repositories.Base
         Task<List<T>> GetAllAsync(CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes);
 
         Task<List<T>> GetAllAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes);
+        
+        Task<List<T>> GetAllTrackedAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes);
 
         Task<(List<T> Items, int TotalCount)> GetPagedAsync(
             int page,

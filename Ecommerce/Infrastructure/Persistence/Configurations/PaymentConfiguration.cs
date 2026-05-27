@@ -12,7 +12,7 @@ namespace Infrastructure.Persistence.Configurations
             builder.Property(p => p.PaymentLinkId).IsRequired().HasMaxLength(100);
             builder.Property(p => p.OrderCode).IsRequired();
             builder.Property(p => p.CheckoutUrl).HasMaxLength(500);
-            builder.ComplexProperty(p => p.Amount, a =>
+            builder.OwnsOne(p => p.Amount, a =>
             {
                 a.Property(m => m.Amount).HasColumnName("Amount").IsRequired();
                 a.Property(m => m.Currency).HasColumnName("Currency").IsRequired().HasMaxLength(10);

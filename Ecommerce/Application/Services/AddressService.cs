@@ -83,6 +83,7 @@ namespace Application.Services
                 request.Province,
                 request.IsDefault);
 
+            await _unitOfWork.GetRepository<UserAddress>().AddAsync(address, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<AddressResponse>.Success(address.ToAddressResponse());

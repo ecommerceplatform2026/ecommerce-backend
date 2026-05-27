@@ -64,6 +64,22 @@ namespace Infrastructure.Repositories.Base
             return await query.ToListAsync(cancellationToken);
         }
 
+        public async Task<List<T>> GetAllTrackedAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default, params Expression<Func<T, object>>[] includes)
+        {
+            IQueryable<T> query = _context.Set<T>()
+                .Where(predicate);
+
+            if (includes != null && includes.Length > 0)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+
+            return await query.ToListAsync(cancellationToken);
+        }
+
         public async Task<(List<T> Items, int TotalCount)> GetPagedAsync(
             int page,
             int pageSize,

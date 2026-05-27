@@ -68,8 +68,7 @@ namespace Application.Services
                 o => o.Id == request.OrderId && o.UserId == userId,
                 true,
                 cancellationToken,
-                o => o.OrderItems,
-                o => o.OrderItems.Select(oi => oi.ProductVariant!));
+                o => o.OrderItems);
 
             if (order == null)
             {
@@ -81,7 +80,9 @@ namespace Application.Services
                 return Result<ReviewResponse>.Failure("Cannot review products for pending or cancelled orders.");
             }
 
-            var hasProduct = order.OrderItems.Any(oi => oi.ProductVariant != null && oi.ProductVariant.ProductId == request.ProductId);
+            var orderVariantIds = order.OrderItems.Select(oi => oi.ProductVariantId).ToList();
+            var hasProduct = await _unitOfWork.GetRepository<ProductVariant>()
+                .TotalAsync(pv => pv.ProductId == request.ProductId && orderVariantIds.Contains(pv.Id)) > 0;
             if (!hasProduct)
             {
                 return Result<ReviewResponse>.Failure("This order does not contain the specified product.");

@@ -68,18 +68,32 @@ namespace Infrastructure.Repositories
             }
 
             // 5. Top selling products sold within the specified date range
-            var topSellingProducts = await validOrdersQuery
+            // Project only the scalar fields we need server-side to minimise data transfer, then
+            // group and aggregate client-side on the compact projection. (Aggregating across
+            // multi-table joins + owned-type columns like Price.Amount is not fully supported by
+            // every EF Core provider in a single server-side GroupBy.)
+            var orderItemProjections = await validOrdersQuery
                 .SelectMany(o => o.OrderItems)
                 .Where(oi => !oi.IsDeleted && oi.ProductVariant != null && oi.ProductVariant.Product != null)
-                .GroupBy(oi => new { oi.ProductVariant!.ProductId, oi.ProductVariant.Product.Name })
+                .Select(oi => new
+                {
+                    ProductId   = oi.ProductVariant!.ProductId,
+                    ProductName = oi.ProductVariant.Product!.Name,
+                    oi.Quantity,
+                    PriceAmount = oi.Price.Amount
+                })
+                .ToListAsync(cancellationToken);
+
+            var topSellingProducts = orderItemProjections
+                .GroupBy(oi => new { oi.ProductId, oi.ProductName })
                 .Select(g => new TopSellingProductResponse(
                     g.Key.ProductId,
-                    g.Key.Name,
+                    g.Key.ProductName,
                     g.Sum(oi => (long)oi.Quantity),
-                    g.Sum(oi => oi.Price.Amount * oi.Quantity)))
+                    g.Sum(oi => oi.PriceAmount * oi.Quantity)))
                 .OrderByDescending(x => x.TotalQuantitySold)
                 .Take(5)
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             // 6. Low stock variants monitoring (current real-time snapshot)
             var lowStockVariants = await _context.Set<ProductVariant>()

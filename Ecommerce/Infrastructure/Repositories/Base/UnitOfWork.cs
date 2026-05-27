@@ -56,8 +56,11 @@ namespace Infrastructure.Repositories.Base
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                var entryDetails = string.Join("; ", ex.Entries.Select(e => $"{e.Entity.GetType().Name} (State: {e.State})"));
-                throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}", ex);
+                const int maxEntriesToShow = 5;
+                var entries = ex.Entries.Select(e => $"{e.Entity.GetType().Name} (State: {e.State})").ToList();
+                var entryDetails = string.Join("; ", entries.Take(maxEntriesToShow));
+                var moreSuffix = entries.Count > maxEntriesToShow ? $" (+{entries.Count - maxEntriesToShow} more)" : string.Empty;
+                throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}{moreSuffix}", ex);
             }
 
             if (HasActiveTransaction)
