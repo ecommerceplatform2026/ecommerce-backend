@@ -24,6 +24,7 @@ namespace Application.DTOs.Product
         public long BasePrice { get; set; }
 
         [Required(ErrorMessage = "Status is required.")]
+        [EnumDataType(typeof(ProductStatus), ErrorMessage = "Invalid Status.")]
         public ProductStatus Status { get; set; }
     }
 }

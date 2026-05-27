@@ -1,9 +1,13 @@
+using Application.Common.Validations;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+
 namespace Application.DTOs.Cart
 {
     public sealed record MergeCartRequest(
-        List<MergeCartItem> Items);
+        [Required(ErrorMessage = "Items list is required.")] List<MergeCartItem> Items);
 
     public sealed record MergeCartItem(
-        Guid ProductVariantId,
-        int Quantity);
+        [NotEmptyGuid(ErrorMessage = "ProductVariantId is required.")] Guid ProductVariantId,
+        [Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than zero.")] int Quantity);
 }
