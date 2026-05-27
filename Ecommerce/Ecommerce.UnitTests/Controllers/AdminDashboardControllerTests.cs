@@ -39,7 +39,9 @@ namespace Ecommerce.UnitTests.Controllers
 
             // Assert
             var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
-            badRequestResult.Value.Should().Be("StartDate cannot be after EndDate.");
+            var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse<object>>().Subject;
+            apiResponse.Success.Should().BeFalse();
+            apiResponse.Errors.Should().Contain("StartDate cannot be after EndDate.");
         }
 
         [Fact]
