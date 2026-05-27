@@ -45,7 +45,8 @@ namespace Application.Services
                     asNoTracking: false,
                     cancellationToken,
                     p => p.Order!,
-                    p => p.Order!.OrderItems);
+                    p => p.Order!.OrderItems,
+                    p => p.Order!.OrderItems.Select(oi => oi.ProductVariant!));
 
             if (paymentRecord == null)
             {

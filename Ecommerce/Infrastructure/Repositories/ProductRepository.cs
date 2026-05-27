@@ -93,6 +93,7 @@ namespace Infrastructure.Repositories
             var totalCount = await query.CountAsync(cancellationToken);
 
             var products = await ApplySorting(query, request.SortBy, request.SortDirection)
+                .AsSplitQuery()
                 .Include(product => product.Category)
                 .Include(product => product.ProductVariants)
                 .Include(product => product.ProductImages)
