@@ -126,12 +126,12 @@ namespace Infrastructure.Services
 
             var html = await File.ReadAllTextAsync(templatePath);
             return html
-                .Replace("{RecipientName}", WebUtility.HtmlEncode(recipientName))
-                .Replace("{OrderCode}", WebUtility.HtmlEncode(order.OrderCode.ToString()))
-                .Replace("{OrderDate}", WebUtility.HtmlEncode(order.CreatedAt.ToString()))
-                .Replace("{PaymentMethod}", WebUtility.HtmlEncode(order.PaymentMethod.ToString()))
-                .Replace("{OrderStatus}", WebUtility.HtmlEncode(order.Status.ToString()))
-                .Replace("{TotalAmount}", WebUtility.HtmlEncode(order.TotalAmount.ToString("N0")))
+                .Replace("{RecipientName}", recipientName)
+                .Replace("{OrderCode}", order.OrderCode.ToString())
+                .Replace("{OrderDate}", order.CreatedAt.ToString())
+                .Replace("{PaymentMethod}", order.PaymentMethod.ToString())
+                .Replace("{OrderStatus}", order.Status.ToString())
+                .Replace("{TotalAmount}", order.TotalAmount.ToString("N0"))
                 .Replace("{ItemsHtml}", itemsHtml);
         }
 

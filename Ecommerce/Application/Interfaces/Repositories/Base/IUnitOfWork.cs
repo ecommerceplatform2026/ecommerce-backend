@@ -10,6 +10,7 @@ namespace Application.Interfaces.Repositories.Base
         Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
         bool HasActiveTransaction { get; }
         void ClearTracker();
+        IExecutionStrategy CreateExecutionStrategy();
 
     }
 }

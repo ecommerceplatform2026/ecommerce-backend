@@ -4,7 +4,6 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services
 {
@@ -40,12 +39,12 @@ namespace Application.Services
             var userId = userResult.Value;
 
             var cartItems = await _unitOfWork.GetRepository<CartItem>()
-                .GetQueryable()
-                .Include(ci => ci.ProductVariant!)
-                    .ThenInclude(pv => pv.Product!)
-                        .ThenInclude(p => p.ProductImages!)
-                .Where(ci => ci.UserId == userId)
-                .ToListAsync(cancellationToken);
+                .GetAllAsync(
+                    ci => ci.UserId == userId,
+                    cancellationToken,
+                    ci => ci.ProductVariant!,
+                    ci => ci.ProductVariant!.Product!,
+                    ci => ci.ProductVariant!.Product!.ProductImages);
 
             var response = cartItems
                 .Where(ci => ci.ProductVariant != null && ci.ProductVariant.Product != null)
@@ -75,9 +74,11 @@ namespace Application.Services
             var userId = userResult.Value;
 
             var variant = await _unitOfWork.GetRepository<ProductVariant>()
-                .GetQueryable()
-                .Include(pv => pv.Product)
-                .FirstOrDefaultAsync(pv => pv.Id == request.ProductVariantId, cancellationToken);
+                .FindAsync(
+                    pv => pv.Id == request.ProductVariantId,
+                    true,
+                    cancellationToken,
+                    pv => pv.Product);
 
             if (variant == null)
             {
@@ -132,11 +133,13 @@ namespace Application.Services
             }
 
             var savedItem = await _unitOfWork.GetRepository<CartItem>()
-                .GetQueryable()
-                .Include(ci => ci.ProductVariant!)
-                    .ThenInclude(pv => pv.Product!)
-                        .ThenInclude(p => p.ProductImages!)
-                .FirstOrDefaultAsync(ci => ci.Id == savedItemId.Value, cancellationToken);
+                .FindAsync(
+                    ci => ci.Id == savedItemId.Value,
+                    true,
+                    cancellationToken,
+                    ci => ci.ProductVariant!,
+                    ci => ci.ProductVariant!.Product!,
+                    ci => ci.ProductVariant!.Product!.ProductImages);
 
             if (savedItem == null)
             {
@@ -175,9 +178,11 @@ namespace Application.Services
             }
 
             var variant = await _unitOfWork.GetRepository<ProductVariant>()
-                .GetQueryable()
-                .Include(pv => pv.Product)
-                .FirstOrDefaultAsync(pv => pv.Id == variantId, cancellationToken);
+                .FindAsync(
+                    pv => pv.Id == variantId,
+                    true,
+                    cancellationToken,
+                    pv => pv.Product);
 
             if (variant == null)
             {
@@ -204,11 +209,13 @@ namespace Application.Services
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             var savedItem = await _unitOfWork.GetRepository<CartItem>()
-                .GetQueryable()
-                .Include(ci => ci.ProductVariant!)
-                    .ThenInclude(pv => pv.Product!)
-                        .ThenInclude(p => p.ProductImages!)
-                .FirstOrDefaultAsync(ci => ci.Id == cartItem.Id, cancellationToken);
+                .FindAsync(
+                    ci => ci.Id == cartItem.Id,
+                    true,
+                    cancellationToken,
+                    ci => ci.ProductVariant!,
+                    ci => ci.ProductVariant!.Product!,
+                    ci => ci.ProductVariant!.Product!.ProductImages);
 
             if (savedItem == null)
             {
@@ -258,9 +265,7 @@ namespace Application.Services
             }
 
             var existingCartItems = await _unitOfWork.GetRepository<CartItem>()
-                .GetQueryable()
-                .Where(ci => ci.UserId == userId)
-                .ToListAsync(cancellationToken);
+                .GetAllAsync(ci => ci.UserId == userId, cancellationToken);
 
             var existingItemsDict = existingCartItems
                 .GroupBy(ci => ci.ProductVariantId)
@@ -271,9 +276,11 @@ namespace Application.Services
                 if (guestItem.Quantity <= 0) continue;
 
                 var variant = await _unitOfWork.GetRepository<ProductVariant>()
-                    .GetQueryable()
-                    .Include(pv => pv.Product)
-                    .FirstOrDefaultAsync(pv => pv.Id == guestItem.ProductVariantId, cancellationToken);
+                    .FindAsync(
+                        pv => pv.Id == guestItem.ProductVariantId,
+                        true,
+                        cancellationToken,
+                        pv => pv.Product);
 
                 if (variant == null || variant.Product == null || variant.Product.Status == ProductStatus.Inactive || variant.IsOutOfStock())
                 {
@@ -329,10 +336,10 @@ namespace Application.Services
                 product?.Id ?? Guid.Empty,
                 product?.Name ?? "Deleted Product",
                 imageUrl,
-                variant?.SKU ?? "N/A",
-                variant?.Color,
-                variant?.Size,
-                variant?.Price ?? 0,
+                variant.SKU,
+                variant.Color,
+                variant.Size,
+                variant.Price,
                 item.Quantity,
                 variant?.Stock ?? 0,
                 variant?.IsLowStock() ?? false,

@@ -8,6 +8,7 @@ using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 
 namespace Application.Services
 {
@@ -17,17 +18,20 @@ namespace Application.Services
         private readonly VnPaySettings _vnPaySettings;
         private readonly INotificationService _notificationService;
         private readonly ICacheService _cacheService;
+        private readonly ILogger<PaymentService> _logger;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
             IOptions<VnPaySettings> vnPayOptions,
             INotificationService notificationService,
-            ICacheService cacheService)
+            ICacheService cacheService,
+            ILogger<PaymentService> logger)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
             _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
             _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -94,7 +98,7 @@ namespace Application.Services
                     : Result<PaymentResponse>.Failure("Payment was already processed as failed.");
             }
 
-            var productIdsToInvalidate = new List<Guid>();
+            var productIdsToInvalidate = new HashSet<Guid>();
             if (isSuccess)
             {
                 paymentRecord.Status = PaymentStatus.Success;
@@ -124,10 +128,7 @@ namespace Application.Services
                             variant.UpdateStock(variant.Stock + orderItem.Quantity);
                             _unitOfWork.GetRepository<ProductVariant>().Update(variant);
 
-                            if (!productIdsToInvalidate.Contains(variant.ProductId))
-                            {
-                                productIdsToInvalidate.Add(variant.ProductId);
-                            }
+                            productIdsToInvalidate.Add(variant.ProductId);
                         }
 
                         var cartItem = new CartItem
@@ -154,8 +155,9 @@ namespace Application.Services
                         await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _logger.LogWarning(ex, "Failed to invalidate product cache during VNPAY callback processing.");
                 }
             }
 
