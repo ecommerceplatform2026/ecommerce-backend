@@ -58,6 +58,17 @@ builder.Services
         "CloudinarySettings must include CloudName, ApiKey, and ApiSecret.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<VnPaySettings>()
+    .Bind(builder.Configuration.GetSection("VnPay"))
+    .Validate(settings =>
+        !string.IsNullOrWhiteSpace(settings.TmnCode) &&
+        !string.IsNullOrWhiteSpace(settings.HashSecret) &&
+        !string.IsNullOrWhiteSpace(settings.PaymentUrl) &&
+        !string.IsNullOrWhiteSpace(settings.ReturnUrl),
+        "VnPaySettings must include TmnCode, HashSecret, PaymentUrl, and ReturnUrl.")
+    .ValidateOnStart();
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 

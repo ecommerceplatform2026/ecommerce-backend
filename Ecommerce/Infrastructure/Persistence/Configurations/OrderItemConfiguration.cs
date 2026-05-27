@@ -11,6 +11,7 @@ namespace Infrastructure.Persistence.Configurations
             builder.HasKey(oi => oi.Id);
             builder.Property(oi => oi.Quantity).IsRequired();
             builder.Property(oi => oi.Price).IsRequired();
+            builder.Property(oi => oi.ProductSnapshot).IsRequired();
 
             builder.HasOne(oi => oi.Order)
                    .WithMany(o => o.OrderItems)
