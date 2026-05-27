@@ -5,8 +5,8 @@ namespace Domain.Entities
 {
     public class Category : BaseEntity
     {
-        public string Name { get; set; } = string.Empty;
-        public CategoryStatus Status { get; set; }
+        public string Name { get; private set; } = string.Empty;
+        public CategoryStatus Status { get; private set; }
 
         public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 

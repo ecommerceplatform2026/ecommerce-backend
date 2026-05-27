@@ -1,37 +1,29 @@
 using Application.Common.Caching;
 using Application.Common.Response;
-using Application.Configurations;
 using Application.DTOs.Payment;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
     public sealed class PaymentService : IPaymentService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly VnPaySettings _vnPaySettings;
-        private readonly INotificationService _notificationService;
-        private readonly ICacheService _cacheService;
-        private readonly ILogger<PaymentService> _logger;
+        private readonly IVnPayService _vnPayService;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
-            IOptions<VnPaySettings> vnPayOptions,
-            INotificationService notificationService,
-            ICacheService cacheService,
-            ILogger<PaymentService> logger)
+            IVnPayService vnPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
-            _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
-            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -41,41 +33,20 @@ namespace Application.Services
                 return Result<PaymentResponse>.Failure("Invalid query parameters.");
             }
 
-            var vnPay = new VnPayLibrary();
-            foreach (var kv in queryParameters)
+            var isValidCallback = _vnPayService.ValidateCallback(queryParameters, out var orderCode, out var isSuccess);
+            if (!isValidCallback)
             {
-                if (!string.IsNullOrEmpty(kv.Key) && kv.Key.StartsWith("vnp_"))
-                {
-                    vnPay.AddResponseData(kv.Key, kv.Value);
-                }
+                return Result<PaymentResponse>.Failure("Invalid callback data or signature.");
             }
-
-            var vnpSecureHash = queryParameters.TryGetValue("vnp_SecureHash", out var secureHash) ? secureHash : string.Empty;
-            if (string.IsNullOrEmpty(vnpSecureHash))
-            {
-                return Result<PaymentResponse>.Failure("Missing secure hash.");
-            }
-
-            var isValidSignature = vnPay.ValidateSignature(vnpSecureHash, _vnPaySettings.HashSecret);
-            if (!isValidSignature)
-            {
-                return Result<PaymentResponse>.Failure("Invalid signature.");
-            }
-
-            var txnRef = vnPay.GetResponseData("vnp_TxnRef");
-            if (!int.TryParse(txnRef, out var orderCode))
-            {
-                return Result<PaymentResponse>.Failure("Invalid transaction reference.");
-            }
-
-            var responseCode = vnPay.GetResponseData("vnp_ResponseCode");
-            var isSuccess = responseCode == "00";
 
             var paymentRecord = await _unitOfWork.GetRepository<Payment>()
-                .GetQueryable()
-                .Include(p => p.Order)
-                    .ThenInclude(o => o!.OrderItems)
-                .FirstOrDefaultAsync(p => p.OrderCode == orderCode, cancellationToken);
+                .FindAsyncWithStringIncludes(
+                    p => p.OrderCode == orderCode,
+                    asNoTracking: false,
+                    cancellationToken,
+                    "Order",
+                    "Order.OrderItems",
+                    "Order.OrderItems.ProductVariant");
 
             if (paymentRecord == null)
             {
@@ -88,7 +59,7 @@ namespace Application.Services
                     paymentRecord.Id,
                     paymentRecord.OrderId,
                     paymentRecord.OrderCode,
-                    paymentRecord.Amount,
+                    paymentRecord.Amount.Amount,
                     paymentRecord.Status,
                     paymentRecord.PaymentLinkId,
                     paymentRecord.CheckoutUrl);
@@ -98,24 +69,22 @@ namespace Application.Services
                     : Result<PaymentResponse>.Failure("Payment was already processed as failed.");
             }
 
-            var productIdsToInvalidate = new HashSet<Guid>();
             if (isSuccess)
             {
-                paymentRecord.Status = PaymentStatus.Success;
-                paymentRecord.PaidAt = DateTime.UtcNow;
+                paymentRecord.Complete(DateTime.UtcNow);
 
                 if (paymentRecord.Order != null)
                 {
-                    paymentRecord.Order.Status = OrderStatus.Confirmed;
+                    paymentRecord.Order.ConfirmPayment();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
                 }
             }
             else
             {
-                paymentRecord.Status = PaymentStatus.Failed;
+                paymentRecord.Fail();
                 if (paymentRecord.Order != null)
                 {
-                    paymentRecord.Order.Status = OrderStatus.Cancelled;
+                    paymentRecord.Order.Cancel();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
 
                     foreach (var orderItem in paymentRecord.Order.OrderItems)
@@ -127,8 +96,6 @@ namespace Application.Services
                         {
                             variant.UpdateStock(variant.Stock + orderItem.Quantity);
                             _unitOfWork.GetRepository<ProductVariant>().Update(variant);
-
-                            productIdsToInvalidate.Add(variant.ProductId);
                         }
 
                         var cartItem = new CartItem
@@ -145,38 +112,11 @@ namespace Application.Services
             _unitOfWork.GetRepository<Payment>().Update(paymentRecord);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            if (productIdsToInvalidate.Any())
-            {
-                try
-                {
-                    await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
-                    foreach (var productId in productIdsToInvalidate)
-                    {
-                        await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to invalidate product cache during VNPAY callback processing.");
-                }
-            }
-
-            if (isSuccess && paymentRecord.Order != null)
-            {
-                try
-                {
-                    await _notificationService.SendOrderConfirmationAsync(paymentRecord.Order);
-                }
-                catch
-                {
-                }
-            }
-
             var responseDto = new PaymentResponse(
                 paymentRecord.Id,
                 paymentRecord.OrderId,
                 paymentRecord.OrderCode,
-                paymentRecord.Amount,
+                paymentRecord.Amount.Amount,
                 paymentRecord.Status,
                 paymentRecord.PaymentLinkId,
                 paymentRecord.CheckoutUrl);

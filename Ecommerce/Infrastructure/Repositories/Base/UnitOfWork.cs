@@ -1,18 +1,29 @@
 using Application.Interfaces.Repositories.Base;
+using Application.Interfaces.Events;
+using Application.Common.Exceptions;
 using Domain.Common;
 using Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Infrastructure.Repositories.Base
 {
     public class UnitOfWork : IUnitOfWork
     {
         private readonly EcommerceContext _context;
+        private readonly IDomainEventPublisher _publisher;
         private readonly Dictionary<Type, object> _repositories = new();
+        private readonly List<IDomainEvent> _pendingDomainEvents = new();
 
-        public UnitOfWork(EcommerceContext context)
+        public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher)
         {
-            _context = context;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         }
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
@@ -29,14 +40,68 @@ namespace Infrastructure.Repositories.Base
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.SaveChangesAsync(cancellationToken);
+            var domainEntities = _context.ChangeTracker
+                .Entries<BaseEntity>()
+                .Where(x => x.Entity.DomainEvents != null && x.Entity.DomainEvents.Any())
+                .ToList();
+
+            var domainEvents = domainEntities
+                .SelectMany(x => x.Entity.DomainEvents)
+                .ToList();
+
+            int result;
+            try
+            {
+                result = await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var entryDetails = string.Join("; ", ex.Entries.Select(e => $"{e.Entity.GetType().Name} (State: {e.State})"));
+                throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}", ex);
+            }
+
+            if (HasActiveTransaction)
+            {
+                _pendingDomainEvents.AddRange(domainEvents);
+                foreach (var entity in domainEntities)
+                {
+                    entity.Entity.ClearDomainEvents();
+                }
+            }
+            else
+            {
+                foreach (var domainEvent in domainEvents)
+                {
+                    await _publisher.PublishAsync(domainEvent, cancellationToken);
+                }
+
+                foreach (var entity in domainEntities)
+                {
+                    entity.Entity.ClearDomainEvents();
+                }
+            }
+
+            return result;
+        }
+
+        private async Task PublishPendingDomainEventsAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var domainEvent in _pendingDomainEvents)
+            {
+                await _publisher.PublishAsync(domainEvent, cancellationToken);
+            }
+            _pendingDomainEvents.Clear();
         }
 
         public bool HasActiveTransaction => _context.Database.CurrentTransaction != null;
 
-        public async Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        public async Task<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
-            return await _context.Database.BeginTransactionAsync(cancellationToken);
+            var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            return new EfTransaction(
+                transaction,
+                onCommit: ct => PublishPendingDomainEventsAsync(ct),
+                onRollback: ct => { _pendingDomainEvents.Clear(); return Task.CompletedTask; });
         }
         
         public void ClearTracker()
@@ -44,9 +109,9 @@ namespace Infrastructure.Repositories.Base
             _context.ChangeTracker.Clear();
         }
 
-        public IExecutionStrategy CreateExecutionStrategy()
+        public Application.Interfaces.Repositories.Base.IExecutionStrategy CreateExecutionStrategy()
         {
-            return _context.Database.CreateExecutionStrategy();
+            return new EfExecutionStrategy(_context.Database.CreateExecutionStrategy());
         }
 
 

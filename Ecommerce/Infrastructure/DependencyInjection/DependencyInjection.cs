@@ -1,11 +1,18 @@
+using Application.Interfaces.Events;
+using Application.Interfaces.Repositories;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
+using Infrastructure.Data;
+using Infrastructure.Repositories;
 using Infrastructure.Repositories.Base;
 using Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
+using System;
+using System.Linq;
 
 namespace Infrastructure.DependencyInjection
 {
@@ -13,8 +20,18 @@ namespace Infrastructure.DependencyInjection
     {
         public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
         {
+            services.AddDbContext<EcommerceContext>(options =>
+                options.UseNpgsql(
+                    configuration.GetConnectionString("DefaultConnection"),
+                    npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 3,
+                        maxRetryDelay: TimeSpan.FromSeconds(5),
+                        errorCodesToAdd: null)));
+
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+            services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IDashboardRepository, DashboardRepository>();
 
             services.AddHttpContextAccessor();
             services.AddScoped<ICurrentUserService, CurrentUserService>();
@@ -46,7 +63,28 @@ namespace Infrastructure.DependencyInjection
 
             services.AddScoped<ICacheService, RedisCacheService>();
             services.AddScoped<INotificationService, NotificationService>();
+            services.AddScoped<IVnPayService, VnPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
+
+            // Domain Event Publisher & Dynamic Handlers Scanning
+            services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
+            
+            var handlerAssembly = typeof(IDomainEventHandler<>).Assembly;
+            var handlerTypes = handlerAssembly.GetTypes()
+                .Where(t => !t.IsAbstract && !t.IsInterface && t.GetInterfaces()
+                    .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>)))
+                .ToList();
+
+            foreach (var handlerType in handlerTypes)
+            {
+                var interfaces = handlerType.GetInterfaces()
+                    .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>));
+
+                foreach (var @interface in interfaces)
+                {
+                    services.AddScoped(@interface, handlerType);
+                }
+            }
 
             return services;
         }

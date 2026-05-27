@@ -1,15 +1,17 @@
-using Application.Common.Caching;
+using Application.Common.Exceptions;
 using Application.Common.Response;
-using Application.Configurations;
 using Application.DTOs.Checkout;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Logging;
+using Domain.Common;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -17,25 +19,16 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
-        private readonly VnPaySettings _vnPaySettings;
-        private readonly INotificationService _notificationService;
-        private readonly ICacheService _cacheService;
-        private readonly ILogger<CheckoutService> _logger;
+        private readonly IVnPayService _vnPayService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IOptions<VnPaySettings> vnPayOptions,
-            INotificationService notificationService,
-            ICacheService cacheService,
-            ILogger<CheckoutService> logger)
+            IVnPayService vnPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
-            _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
-            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
-            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -57,10 +50,7 @@ namespace Application.Services
                 _unitOfWork.ClearTracker();
 
                 var existingPayment = await _unitOfWork.GetRepository<Payment>()
-                    .GetQueryable()
-                    .Include(p => p.Order)
-                        .ThenInclude(o => o!.OrderItems)
-                    .FirstOrDefaultAsync(p => p.Order != null
+                    .FindAsync(p => p.Order != null
                         && p.Order.UserId == userId
                         && p.Order.Status == OrderStatus.Pending
                         && p.Status == PaymentStatus.Pending
@@ -68,7 +58,11 @@ namespace Application.Services
                             || p.Order.PaymentMethod == PaymentMethod.MoMo
                             || p.Order.PaymentMethod == PaymentMethod.ZaloPay
                             || p.Order.PaymentMethod == PaymentMethod.PayOS)
-                        && !p.IsDeleted, cancellationToken);
+                        && !p.IsDeleted,
+                        asNoTracking: false,
+                        cancellationToken,
+                        p => p.Order!,
+                        p => p.Order!.OrderItems);
 
                 if (existingPayment != null)
                 {
@@ -76,13 +70,13 @@ namespace Application.Services
                         oi.Id,
                         oi.ProductVariantId,
                         oi.Quantity,
-                        oi.Price,
+                        oi.Price.Amount,
                         oi.ProductSnapshot)).ToList();
 
                     var response = new CheckoutResponse(
                         existingPayment.OrderId,
                         existingPayment.OrderCode,
-                        existingPayment.Order.TotalAmount,
+                        existingPayment.Order.TotalAmount.Amount,
                         existingPayment.Order.Status,
                         existingPayment.Order.PaymentMethod,
                         itemResponses,
@@ -93,11 +87,11 @@ namespace Application.Services
                 }
 
                 var cartItems = await _unitOfWork.GetRepository<CartItem>()
-                    .GetQueryable()
-                    .Include(ci => ci.ProductVariant!)
-                        .ThenInclude(pv => pv.Product!)
-                    .Where(ci => ci.UserId == userId)
-                    .ToListAsync(cancellationToken);
+                    .GetAllAsync(
+                        ci => ci.UserId == userId,
+                        cancellationToken,
+                        ci => ci.ProductVariant!,
+                        ci => ci.ProductVariant!.Product!);
 
                 if (cartItems == null || !cartItems.Any())
                 {
@@ -125,7 +119,7 @@ namespace Application.Services
 
                     if (variant.IsOutOfStock() || variant.Stock < cartItem.Quantity)
                     {
-                        return Result<CheckoutResponse>.Failure($"Insufficient stock for '{product.Name}' ({variant.SKU}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
+                        return Result<CheckoutResponse>.Failure($"Insufficient stock for '{product.Name}' ({variant.SKU.Value}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
                     }
                 }
 
@@ -137,7 +131,7 @@ namespace Application.Services
                 {
                     await strategy.ExecuteAsync(async () =>
                     {
-                        using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+                        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
                         try
                         {
                             int orderCode;
@@ -147,9 +141,8 @@ namespace Application.Services
                             do
                             {
                                 orderCode = random.Next(100000, 999999);
-                                codeExists = await _unitOfWork.GetRepository<Order>()
-                                    .GetQueryable()
-                                    .AnyAsync(o => o.OrderCode == orderCode, cancellationToken);
+                                codeExists = (await _unitOfWork.GetRepository<Order>()
+                                    .TotalAsync(o => o.OrderCode == orderCode)) > 0;
                                 attempts++;
                             } while (codeExists && attempts < 10);
 
@@ -158,20 +151,10 @@ namespace Application.Services
                                 throw new InvalidOperationException("Could not generate a unique order code after multiple attempts.");
                             }
 
-                            long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price * ci.Quantity);
+                            long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price.Amount * ci.Quantity);
 
-                            var order = new Order
-                            {
-                                UserId = userId,
-                                TotalAmount = totalAmount,
-                                Status = OrderStatus.Pending,
-                                OrderCode = orderCode,
-                                PaymentMethod = request.PaymentMethod
-                            };
+                            var order = Order.Create(userId, orderCode, request.PaymentMethod);
 
-                            await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
-
-                            var orderItems = new List<OrderItem>();
                             var productIdsToInvalidate = new HashSet<Guid>();
 
                             foreach (var cartItem in cartItems)
@@ -197,20 +180,12 @@ namespace Application.Services
                                 };
                                 var snapshotJson = JsonSerializer.Serialize(snapshotObj);
 
-                                var orderItem = new OrderItem
-                                {
-                                    OrderId = order.Id,
-                                    ProductVariantId = cartItem.ProductVariantId,
-                                    Quantity = cartItem.Quantity,
-                                    Price = variant.Price,
-                                    ProductSnapshot = snapshotJson
-                                };
-
-                                await _unitOfWork.GetRepository<OrderItem>().AddAsync(orderItem, cancellationToken);
-                                orderItems.Add(orderItem);
+                                order.AddItem(cartItem.ProductVariantId, cartItem.Quantity, variant.Price, snapshotJson);
 
                                 _unitOfWork.GetRepository<CartItem>().Remove(cartItem);
                             }
+
+                            await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
 
                             string? checkoutUrl = null;
                             string paymentLinkId = "";
@@ -218,21 +193,7 @@ namespace Application.Services
                             if (request.PaymentMethod == PaymentMethod.VNPay)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
-                                var vnPay = new VnPayLibrary();
-                                vnPay.AddRequestData("vnp_Version", "2.1.0");
-                                vnPay.AddRequestData("vnp_Command", "pay");
-                                vnPay.AddRequestData("vnp_TmnCode", _vnPaySettings.TmnCode);
-                                vnPay.AddRequestData("vnp_Amount", (totalAmount * 100).ToString());
-                                vnPay.AddRequestData("vnp_CreateDate", DateTime.Now.ToString("yyyyMMddHHmmss"));
-                                vnPay.AddRequestData("vnp_CurrCode", "VND");
-                                vnPay.AddRequestData("vnp_IpAddr", "127.0.0.1");
-                                vnPay.AddRequestData("vnp_Locale", "vn");
-                                vnPay.AddRequestData("vnp_OrderInfo", $"Thanh toan don hang {orderCode}");
-                                vnPay.AddRequestData("vnp_OrderType", "other");
-                                vnPay.AddRequestData("vnp_ReturnUrl", _vnPaySettings.ReturnUrl);
-                                vnPay.AddRequestData("vnp_TxnRef", orderCode.ToString());
-
-                                checkoutUrl = vnPay.CreateRequestUrl(_vnPaySettings.PaymentUrl, _vnPaySettings.HashSecret);
+                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
                             }
                             else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
                             {
@@ -240,59 +201,24 @@ namespace Application.Services
                                 checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
                             }
 
-                            var payment = new Payment
-                            {
-                                OrderId = order.Id,
-                                PaymentLinkId = paymentLinkId,
-                                OrderCode = orderCode,
-                                CheckoutUrl = checkoutUrl,
-                                Amount = totalAmount,
-                                Currency = "VND",
-                                Status = PaymentStatus.Pending
-                            };
+                            var payment = Payment.Create(order.Id, orderCode, order.TotalAmount, paymentLinkId, checkoutUrl);
 
                             await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
 
                             await _unitOfWork.SaveChangesAsync(cancellationToken);
                             await transaction.CommitAsync(cancellationToken);
 
-                            try
-                            {
-                                await _cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
-                                foreach (var productId in productIdsToInvalidate)
-                                {
-                                    await _cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogWarning(ex, "Failed to invalidate product cache during checkout.");
-                            }
-
-                            order.OrderItems = orderItems;
-                            if (order.PaymentMethod == PaymentMethod.COD)
-                            {
-                                try
-                                {
-                                    await _notificationService.SendOrderConfirmationAsync(order);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogWarning(ex, "Failed to send order confirmation email during checkout.");
-                                }
-                            }
-
-                            var itemResponses = orderItems.Select(oi => new CheckoutItemResponse(
+                            var itemResponses = order.OrderItems.Select(oi => new CheckoutItemResponse(
                                 oi.Id,
                                 oi.ProductVariantId,
                                 oi.Quantity,
-                                oi.Price,
+                                oi.Price.Amount,
                                 oi.ProductSnapshot)).ToList();
 
                             checkoutResponse = new CheckoutResponse(
                                 order.Id,
                                 order.OrderCode,
-                                order.TotalAmount,
+                                order.TotalAmount.Amount,
                                 order.Status,
                                 order.PaymentMethod,
                                 itemResponses,
@@ -313,7 +239,7 @@ namespace Application.Services
                         return Result<CheckoutResponse>.Success(checkoutResponse);
                     }
                 }
-                catch (DbUpdateConcurrencyException)
+                catch (ConcurrencyException)
                 {
                     if (attempt == maxRetryAttempts)
                     {

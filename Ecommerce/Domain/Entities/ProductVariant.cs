@@ -5,12 +5,12 @@ namespace Domain.Entities
     public class ProductVariant : BaseEntity
     {
         public Guid ProductId { get; private set; }
-        public string SKU { get; private set; } = string.Empty;
+        public Sku SKU { get; private set; } = null!;
         public string? Color { get; private set; }
         public string? Size { get; private set; }
         public long Stock { get; private set; }
         public long LowStockThreshold { get; private set; }
-        public long Price { get; private set; }
+        public Money Price { get; private set; } = null!;
 
         public Product Product { get; set; } = null!;
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
@@ -18,46 +18,39 @@ namespace Domain.Entities
 
         private ProductVariant() { }
 
-        private ProductVariant(Guid productId, string sku, string? color, string? size, long stock, long price, long lowStockThreshold = 5)
+        private ProductVariant(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5)
         {
             ProductId = productId;
-            SKU = NormalizeRequired(sku);
+            SKU = sku ?? throw new ArgumentNullException(nameof(sku));
             Color = color?.Trim();
             Size = size?.Trim();
             Stock = EnsureNonNegative(stock, nameof(stock));
-            Price = EnsureNonNegative(price, nameof(price));
+            Price = price ?? throw new ArgumentNullException(nameof(price));
             LowStockThreshold = EnsureNonNegative(lowStockThreshold, nameof(lowStockThreshold));
         }
 
-        public static ProductVariant Create(Guid productId, string sku, string? color, string? size, long stock, long price, long lowStockThreshold = 5)
+        public static ProductVariant Create(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5)
         {
             return new ProductVariant(productId, sku, color, size, stock, price, lowStockThreshold);
         }
 
-        public void Update(string sku, string? color, string? size, long price, long lowStockThreshold)
+        public void Update(Sku sku, string? color, string? size, Money price, long lowStockThreshold)
         {
-            SKU = NormalizeRequired(sku);
+            SKU = sku ?? throw new ArgumentNullException(nameof(sku));
             Color = color?.Trim();
             Size = size?.Trim();
-            Price = EnsureNonNegative(price, nameof(price));
+            Price = price ?? throw new ArgumentNullException(nameof(price));
             LowStockThreshold = EnsureNonNegative(lowStockThreshold, nameof(lowStockThreshold));
         }
 
         public void UpdateStock(long newStock)
         {
             Stock = EnsureNonNegative(newStock, nameof(Stock));
+            AddDomainEvent(new Events.ProductStockUpdatedDomainEvent(ProductId));
         }
 
         public bool IsLowStock() => Stock <= LowStockThreshold;
         public bool IsOutOfStock() => Stock <= 0;
-
-        private static string NormalizeRequired(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("Value cannot be null, empty, or whitespace.", nameof(value));
-
-            return value.Trim();
-        }
 
         private static long EnsureNonNegative(long value, string paramName)
         {

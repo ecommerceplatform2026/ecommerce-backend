@@ -6,7 +6,7 @@ using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
+using System;
 
 namespace Application.Services
 {
@@ -55,7 +55,7 @@ namespace Application.Services
             {
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, "IX_Users_Email"))
+            catch (Exception ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, "IX_Users_Email"))
             {
                 return Result<AuthResponse>.Conflict("Email is already registered.");
             }

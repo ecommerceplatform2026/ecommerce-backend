@@ -7,7 +7,10 @@ using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
+using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -61,11 +64,12 @@ namespace Application.Services
                 return Result<ReviewResponse>.NotFound("Product not found.");
             }
 
-            var order = await _unitOfWork.GetRepository<Order>().GetQueryable()
-                .AsNoTracking()
-                .Include(o => o.OrderItems)
-                    .ThenInclude(oi => oi.ProductVariant)
-                .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.UserId == userId, cancellationToken);
+            var order = await _unitOfWork.GetRepository<Order>().FindAsync(
+                o => o.Id == request.OrderId && o.UserId == userId,
+                true,
+                cancellationToken,
+                o => o.OrderItems,
+                o => o.OrderItems.Select(oi => oi.ProductVariant!));
 
             if (order == null)
             {
@@ -93,23 +97,20 @@ namespace Application.Services
                 return Result<ReviewResponse>.Conflict("You have already reviewed this product for this order.");
             }
 
-            var review = new Review
-            {
-                UserId = userId,
-                ProductId = request.ProductId,
-                OrderId = request.OrderId,
-                Rating = request.Rating,
-                Title = request.Title,
-                Comment = request.Comment,
-                Status = ReviewStatus.Approved
-            };
+            var review = Review.Create(
+                userId,
+                request.ProductId,
+                request.OrderId,
+                request.Rating,
+                request.Title,
+                request.Comment);
 
             try
             {
                 await _unitOfWork.GetRepository<Review>().AddAsync(review, cancellationToken);
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
-            catch (DbUpdateException ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, "IX_Reviews_UserId_OrderId_ProductId"))
+            catch (Exception ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, "IX_Reviews_UserId_OrderId_ProductId"))
             {
                 return Result<ReviewResponse>.Conflict("You have already reviewed this product for this order.");
             }
