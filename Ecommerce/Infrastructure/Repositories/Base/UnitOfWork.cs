@@ -44,6 +44,11 @@ namespace Infrastructure.Repositories.Base
             _context.ChangeTracker.Clear();
         }
 
+        public IExecutionStrategy CreateExecutionStrategy()
+        {
+            return _context.Database.CreateExecutionStrategy();
+        }
+
 
     }
 }
