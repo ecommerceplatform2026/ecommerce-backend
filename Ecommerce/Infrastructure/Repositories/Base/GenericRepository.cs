@@ -150,6 +150,26 @@ namespace Infrastructure.Repositories.Base
             return await query.FirstOrDefaultAsync(predicate, cancellationToken);
         }
 
+        public async Task<T?> FindAsyncWithStringIncludes(Expression<Func<T, bool>> predicate, bool asNoTracking = true, CancellationToken cancellationToken = default, params string[] includes)
+        {
+            IQueryable<T> query = _context.Set<T>();
+
+            if (asNoTracking)
+            {
+                query = query.AsNoTracking();
+            }
+
+            if (includes != null && includes.Length > 0)
+            {
+                foreach (var include in includes)
+                {
+                    query = query.Include(include);
+                }
+            }
+
+            return await query.FirstOrDefaultAsync(predicate, cancellationToken);
+        }
+
         public async Task AddAsync(T entity, CancellationToken cancellationToken = default)
         {
             await _context.Set<T>()
