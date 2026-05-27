@@ -6,7 +6,12 @@ using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Common;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -114,107 +119,128 @@ namespace Application.Services
 
                     if (variant.IsOutOfStock() || variant.Stock < cartItem.Quantity)
                     {
-                        return Result<CheckoutResponse>.Failure($"Insufficient stock for '{product.Name}' ({variant.SKU}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
+                        return Result<CheckoutResponse>.Failure($"Insufficient stock for '{product.Name}' ({variant.SKU.Value}). Available stock: {variant.Stock}, requested: {cartItem.Quantity}.");
                     }
                 }
 
-                await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+                var strategy = _unitOfWork.CreateExecutionStrategy();
+                CheckoutResponse? checkoutResponse = null;
+                bool isSuccess = false;
+
                 try
                 {
-                    int orderCode;
-                    var random = new Random();
-                    bool codeExists;
-                    int attempts = 0;
-                    do
+                    await strategy.ExecuteAsync(async () =>
                     {
-                        orderCode = random.Next(100000, 999999);
-                        codeExists = (await _unitOfWork.GetRepository<Order>()
-                            .TotalAsync(o => o.OrderCode == orderCode)) > 0;
-                        attempts++;
-                    } while (codeExists && attempts < 10);
-
-                    long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price.Amount * ci.Quantity);
-
-                    var order = Order.Create(userId, orderCode, request.PaymentMethod);
-
-                    var productIdsToInvalidate = new List<Guid>();
-
-                    foreach (var cartItem in cartItems)
-                    {
-                        var variant = cartItem.ProductVariant!;
-                        var product = variant.Product!;
-
-                        variant.UpdateStock(variant.Stock - cartItem.Quantity);
-                        _unitOfWork.GetRepository<ProductVariant>().Update(variant);
-
-                        if (!productIdsToInvalidate.Contains(product.Id))
+                        await using var transaction = await _unitOfWork.BeginTransactionAsync(cancellationToken);
+                        try
                         {
-                            productIdsToInvalidate.Add(product.Id);
+                            int orderCode;
+                            var random = new Random();
+                            bool codeExists;
+                            int attempts = 0;
+                            do
+                            {
+                                orderCode = random.Next(100000, 999999);
+                                codeExists = (await _unitOfWork.GetRepository<Order>()
+                                    .TotalAsync(o => o.OrderCode == orderCode)) > 0;
+                                attempts++;
+                            } while (codeExists && attempts < 10);
+
+                            if (codeExists)
+                            {
+                                throw new InvalidOperationException("Could not generate a unique order code after multiple attempts.");
+                            }
+
+                            long totalAmount = cartItems.Sum(ci => ci.ProductVariant!.Price.Amount * ci.Quantity);
+
+                            var order = Order.Create(userId, orderCode, request.PaymentMethod);
+
+                            var productIdsToInvalidate = new HashSet<Guid>();
+
+                            foreach (var cartItem in cartItems)
+                            {
+                                var variant = cartItem.ProductVariant!;
+                                var product = variant.Product!;
+
+                                variant.UpdateStock(variant.Stock - cartItem.Quantity);
+                                _unitOfWork.GetRepository<ProductVariant>().Update(variant);
+
+                                productIdsToInvalidate.Add(product.Id);
+
+                                var snapshotObj = new
+                                {
+                                    ProductId = product.Id,
+                                    ProductName = product.Name,
+                                    ProductDescription = product.Description,
+                                    Material = product.Material,
+                                    SKU = variant.SKU,
+                                    Color = variant.Color,
+                                    Size = variant.Size,
+                                    Price = variant.Price
+                                };
+                                var snapshotJson = JsonSerializer.Serialize(snapshotObj);
+
+                                order.AddItem(cartItem.ProductVariantId, cartItem.Quantity, variant.Price, snapshotJson);
+
+                                _unitOfWork.GetRepository<CartItem>().Remove(cartItem);
+                            }
+
+                            await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
+
+                            string? checkoutUrl = null;
+                            string paymentLinkId = "";
+
+                            if (request.PaymentMethod == PaymentMethod.VNPay)
+                            {
+                                paymentLinkId = Guid.NewGuid().ToString();
+                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
+                            }
+                            else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
+                            {
+                                paymentLinkId = Guid.NewGuid().ToString();
+                                checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
+                            }
+
+                            var payment = Payment.Create(order.Id, orderCode, order.TotalAmount, paymentLinkId, checkoutUrl);
+
+                            await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
+
+                            await _unitOfWork.SaveChangesAsync(cancellationToken);
+                            await transaction.CommitAsync(cancellationToken);
+
+                            var itemResponses = order.OrderItems.Select(oi => new CheckoutItemResponse(
+                                oi.Id,
+                                oi.ProductVariantId,
+                                oi.Quantity,
+                                oi.Price.Amount,
+                                oi.ProductSnapshot)).ToList();
+
+                            checkoutResponse = new CheckoutResponse(
+                                order.Id,
+                                order.OrderCode,
+                                order.TotalAmount.Amount,
+                                order.Status,
+                                order.PaymentMethod,
+                                itemResponses,
+                                checkoutUrl,
+                                paymentLinkId);
+
+                            isSuccess = true;
                         }
-
-                        var snapshotObj = new
+                        catch (Exception)
                         {
-                            ProductId = product.Id,
-                            ProductName = product.Name,
-                            ProductDescription = product.Description,
-                            Material = product.Material,
-                            SKU = variant.SKU,
-                            Color = variant.Color,
-                            Size = variant.Size,
-                            Price = variant.Price
-                        };
-                        var snapshotJson = JsonSerializer.Serialize(snapshotObj);
+                            await transaction.RollbackAsync(cancellationToken);
+                            throw;
+                        }
+                    });
 
-                        order.AddItem(cartItem.ProductVariantId, cartItem.Quantity, variant.Price, snapshotJson);
-
-                        _unitOfWork.GetRepository<CartItem>().Remove(cartItem);
-                    }
-
-                    await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
-
-                    string? checkoutUrl = null;
-                    string paymentLinkId = "";
-
-                    if (request.PaymentMethod == PaymentMethod.VNPay)
+                    if (isSuccess && checkoutResponse != null)
                     {
-                        paymentLinkId = Guid.NewGuid().ToString();
-                        checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
+                        return Result<CheckoutResponse>.Success(checkoutResponse);
                     }
-                    else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
-                    {
-                        paymentLinkId = Guid.NewGuid().ToString();
-                        checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
-                    }
-
-                    var payment = Payment.Create(order.Id, orderCode, order.TotalAmount, paymentLinkId, checkoutUrl);
-
-                    await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
-
-                    await _unitOfWork.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
-                    var itemResponses = order.OrderItems.Select(oi => new CheckoutItemResponse(
-                        oi.Id,
-                        oi.ProductVariantId,
-                        oi.Quantity,
-                        oi.Price.Amount,
-                        oi.ProductSnapshot)).ToList();
-
-                    var response = new CheckoutResponse(
-                        order.Id,
-                        order.OrderCode,
-                        order.TotalAmount.Amount,
-                        order.Status,
-                        order.PaymentMethod,
-                        itemResponses,
-                        checkoutUrl,
-                        paymentLinkId);
-
-                    return Result<CheckoutResponse>.Success(response);
                 }
                 catch (ConcurrencyException)
                 {
-                    await transaction.RollbackAsync(cancellationToken);
                     if (attempt == maxRetryAttempts)
                     {
                         return Result<CheckoutResponse>.Failure("Checkout failed due to concurrent update conflicts. Please try again.");
@@ -223,7 +249,6 @@ namespace Application.Services
                 }
                 catch (Exception ex)
                 {
-                    await transaction.RollbackAsync(cancellationToken);
                     return Result<CheckoutResponse>.Failure($"An error occurred during checkout: {ex.Message}");
                 }
             }
