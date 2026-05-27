@@ -18,6 +18,7 @@ namespace Infrastructure.Repositories.Base
         private readonly EcommerceContext _context;
         private readonly IDomainEventPublisher _publisher;
         private readonly Dictionary<Type, object> _repositories = new();
+        private readonly List<IDomainEvent> _pendingDomainEvents = new();
 
         public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher)
         {
@@ -39,19 +40,6 @@ namespace Infrastructure.Repositories.Base
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
-            await DispatchDomainEventsAsync(cancellationToken);
-            try
-            {
-                return await _context.SaveChangesAsync(cancellationToken);
-            }
-            catch (DbUpdateConcurrencyException ex)
-            {
-                throw new ConcurrencyException("A concurrency conflict occurred while saving changes.", ex);
-            }
-        }
-
-        private async Task DispatchDomainEventsAsync(CancellationToken cancellationToken)
-        {
             var domainEntities = _context.ChangeTracker
                 .Entries<BaseEntity>()
                 .Where(x => x.Entity.DomainEvents != null && x.Entity.DomainEvents.Any())
@@ -61,15 +49,48 @@ namespace Infrastructure.Repositories.Base
                 .SelectMany(x => x.Entity.DomainEvents)
                 .ToList();
 
-            foreach (var entity in domainEntities)
+            int result;
+            try
             {
-                entity.Entity.ClearDomainEvents();
+                result = await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                var entryDetails = string.Join("; ", ex.Entries.Select(e => $"{e.Entity.GetType().Name} (State: {e.State})"));
+                throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}", ex);
             }
 
-            foreach (var domainEvent in domainEvents)
+            if (HasActiveTransaction)
+            {
+                _pendingDomainEvents.AddRange(domainEvents);
+                foreach (var entity in domainEntities)
+                {
+                    entity.Entity.ClearDomainEvents();
+                }
+            }
+            else
+            {
+                foreach (var domainEvent in domainEvents)
+                {
+                    await _publisher.PublishAsync(domainEvent, cancellationToken);
+                }
+
+                foreach (var entity in domainEntities)
+                {
+                    entity.Entity.ClearDomainEvents();
+                }
+            }
+
+            return result;
+        }
+
+        private async Task PublishPendingDomainEventsAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var domainEvent in _pendingDomainEvents)
             {
                 await _publisher.PublishAsync(domainEvent, cancellationToken);
             }
+            _pendingDomainEvents.Clear();
         }
 
         public bool HasActiveTransaction => _context.Database.CurrentTransaction != null;
@@ -77,7 +98,10 @@ namespace Infrastructure.Repositories.Base
         public async Task<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-            return new EfTransaction(transaction);
+            return new EfTransaction(
+                transaction,
+                onCommit: ct => PublishPendingDomainEventsAsync(ct),
+                onRollback: ct => { _pendingDomainEvents.Clear(); return Task.CompletedTask; });
         }
         
         public void ClearTracker()
