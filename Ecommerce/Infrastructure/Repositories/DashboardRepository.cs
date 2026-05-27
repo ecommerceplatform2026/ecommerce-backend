@@ -68,25 +68,29 @@ namespace Infrastructure.Repositories
             }
 
             // 5. Top selling products sold within the specified date range
-            var orderItems = await validOrdersQuery
+            // Project only the scalar fields we need server-side to minimise data transfer, then
+            // group and aggregate client-side on the compact projection. (Aggregating across
+            // multi-table joins + owned-type columns like Price.Amount is not fully supported by
+            // every EF Core provider in a single server-side GroupBy.)
+            var orderItemProjections = await validOrdersQuery
                 .SelectMany(o => o.OrderItems)
                 .Where(oi => !oi.IsDeleted && oi.ProductVariant != null && oi.ProductVariant.Product != null)
                 .Select(oi => new
                 {
-                    oi.ProductVariant!.ProductId,
-                    ProductName = oi.ProductVariant.Product.Name,
+                    ProductId   = oi.ProductVariant!.ProductId,
+                    ProductName = oi.ProductVariant.Product!.Name,
                     oi.Quantity,
-                    oi.Price
+                    PriceAmount = oi.Price.Amount
                 })
                 .ToListAsync(cancellationToken);
 
-            var topSellingProducts = orderItems
+            var topSellingProducts = orderItemProjections
                 .GroupBy(oi => new { oi.ProductId, oi.ProductName })
                 .Select(g => new TopSellingProductResponse(
                     g.Key.ProductId,
                     g.Key.ProductName,
                     g.Sum(oi => (long)oi.Quantity),
-                    g.Sum(oi => oi.Price.Amount * oi.Quantity)))
+                    g.Sum(oi => oi.PriceAmount * oi.Quantity)))
                 .OrderByDescending(x => x.TotalQuantitySold)
                 .Take(5)
                 .ToList();

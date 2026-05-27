@@ -23,6 +23,7 @@ namespace Ecommerce.IntegrationTests.Helpers
     public class InMemoryCacheService : ICacheService
     {
         private readonly ConcurrentDictionary<string, object> _cache = new();
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
         public Task<T?> GetAsync<T>(string key, CancellationToken cancellationToken = default)
         {
@@ -66,16 +67,34 @@ namespace Ecommerce.IntegrationTests.Helpers
             TimeSpan? expiration = null,
             CancellationToken cancellationToken = default)
         {
+            // Fast path: already cached
             if (_cache.TryGetValue(key, out var cached) && cached is T typedValue)
             {
                 return typedValue;
             }
-            var value = await factory();
-            if (value != null)
+
+            // Atomic path: acquire per-key semaphore to prevent double-execution of factory
+            var semaphore = _locks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+            await semaphore.WaitAsync(cancellationToken);
+            try
             {
-                _cache[key] = value;
+                // Re-check inside the lock in case another thread populated the cache
+                if (_cache.TryGetValue(key, out cached) && cached is T inside)
+                {
+                    return inside;
+                }
+
+                var value = await factory();
+                if (value != null)
+                {
+                    _cache[key] = value;
+                }
+                return value;
             }
-            return value;
+            finally
+            {
+                semaphore.Release();
+            }
         }
     }
 

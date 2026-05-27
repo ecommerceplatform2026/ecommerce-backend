@@ -85,12 +85,7 @@ namespace Ecommerce.IntegrationTests.Controllers
                 product.AddVariant("CARTSKU1", "Red", "M", 100, new Money(100000), 5);
                 db.Products.Add(product);
                 await db.SaveChangesAsync();
-                variantId = product.ProductVariants.GetEnumerator().Current?.Id ?? Guid.NewGuid();
-                // Wait! Let's get the actual variant ID
-                foreach (var v in product.ProductVariants)
-                {
-                    variantId = v.Id;
-                }
+                variantId = product.ProductVariants.First().Id;
             }
             AuthenticateClient(_client, user);
 
