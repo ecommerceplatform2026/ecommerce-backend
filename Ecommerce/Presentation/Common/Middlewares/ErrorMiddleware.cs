@@ -29,13 +29,15 @@ public class ErrorMiddleware
             switch (ex)
             {
                 case ArgumentException or InvalidOperationException:
+                    _logger.LogWarning(ex, "A bad request exception occurred: {Message}", ex.Message);
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    errors.Add(ex.Message);
+                    errors.Add("Invalid request parameters or operation.");
                     break;
 
                 case KeyNotFoundException:
+                    _logger.LogWarning(ex, "A not found exception occurred: {Message}", ex.Message);
                     context.Response.StatusCode = StatusCodes.Status404NotFound;
-                    errors.Add(ex.Message);
+                    errors.Add("The requested resource was not found.");
                     break;
 
                 case UnauthorizedAccessException:
