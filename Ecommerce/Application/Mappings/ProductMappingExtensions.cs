@@ -1,5 +1,6 @@
 using Application.DTOs.Product;
 using Domain.Entities;
+using Domain.Enums;
 
 namespace Application.Mappings
 {
@@ -12,6 +13,24 @@ namespace Application.Mappings
                 .Select(v => v.ToProductVariantResponse())
                 .ToList() ?? new List<Application.DTOs.Product.ProductVariants.ProductVariantResponse>();
 
+            var imageUrl = product.ProductImages?
+                .Where(img => !img.IsDeleted)
+                .OrderBy(image => image.CreatedAt)
+                .FirstOrDefault()?.ImageUrl;
+
+            var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice).ToList();
+            var minPrice = prices.Min();
+            var maxPrice = prices.Max();
+            var totalStock = variants.Sum(variant => variant.Stock);
+            var stockStatus = GetStockStatus(totalStock);
+
+            var approvedReviews = product.Reviews?
+                .Where(r => r.Status == ReviewStatus.Approved && !r.IsDeleted)
+                .ToList() ?? new List<Review>();
+
+            double averageRating = approvedReviews.Any() ? approvedReviews.Average(r => r.Rating) : 0.0;
+            int reviewCount = approvedReviews.Count;
+
             return new ProductResponse(
                 product.Id,
                 product.CategoryId,
@@ -21,12 +40,20 @@ namespace Application.Mappings
                 product.BasePrice,
                 product.Status,
                 product.Category?.Name,
+                imageUrl,
+                minPrice,
+                maxPrice,
+                totalStock,
+                stockStatus,
+                averageRating,
+                reviewCount,
                 variants);
         }
 
         public static ProductDetailResponse ToProductDetailResponse(this Product product)
         {
-            var variants = product.ProductVariants
+            var variants = product.ProductVariants?
+                .Where(v => !v.IsDeleted)
                 .OrderBy(variant => variant.SKU)
                 .Select(variant => new Application.DTOs.Product.ProductVariantResponse
                 {
@@ -38,10 +65,17 @@ namespace Application.Mappings
                     StockStatus = GetStockStatus(variant.Stock),
                     Price = variant.Price
                 })
-                .ToList();
+                .ToList() ?? new List<Application.DTOs.Product.ProductVariantResponse>();
 
             var prices = variants.Select(variant => variant.Price).DefaultIfEmpty(product.BasePrice).ToList();
             var totalStock = variants.Sum(variant => variant.Stock);
+
+            var approvedReviews = product.Reviews?
+                .Where(r => r.Status == ReviewStatus.Approved && !r.IsDeleted)
+                .ToList() ?? new List<Review>();
+
+            double averageRating = approvedReviews.Any() ? approvedReviews.Average(r => r.Rating) : 0.0;
+            int reviewCount = approvedReviews.Count;
 
             return new ProductDetailResponse
             {
@@ -58,14 +92,17 @@ namespace Application.Mappings
                 CategoryName = product.Category?.Name,
                 TotalStock = totalStock,
                 StockStatus = GetStockStatus(totalStock),
-                Images = product.ProductImages
+                AverageRating = averageRating,
+                ReviewCount = reviewCount,
+                Images = product.ProductImages?
+                    .Where(img => !img.IsDeleted)
                     .OrderBy(image => image.CreatedAt)
                     .Select(image => new ProductImageResponse
                     {
                         Id = image.Id,
                         ImageUrl = image.ImageUrl
                     })
-                    .ToList(),
+                    .ToList() ?? new List<ProductImageResponse>(),
                 Variants = variants
             };
         }

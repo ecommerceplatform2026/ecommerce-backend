@@ -11,5 +11,12 @@ namespace Application.DTOs.Product
         long BasePrice,
         ProductStatus Status,
         string? CategoryName,
+        string? ImageUrl,
+        long MinPrice,
+        long MaxPrice,
+        long TotalStock,
+        string StockStatus,
+        double AverageRating,
+        int ReviewCount,
         List<Application.DTOs.Product.ProductVariants.ProductVariantResponse> Variants);
 }

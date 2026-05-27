@@ -7,11 +7,6 @@ using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Application.Services
 {
@@ -19,11 +14,16 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly VnPaySettings _vnPaySettings;
+        private readonly INotificationService _notificationService;
 
-        public PaymentService(IUnitOfWork unitOfWork, IOptions<VnPaySettings> vnPayOptions)
+        public PaymentService(
+            IUnitOfWork unitOfWork,
+            IOptions<VnPaySettings> vnPayOptions,
+            INotificationService notificationService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _vnPaySettings = vnPayOptions?.Value ?? throw new ArgumentNullException(nameof(vnPayOptions));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -94,7 +94,7 @@ namespace Application.Services
             {
                 paymentRecord.Status = PaymentStatus.Success;
                 paymentRecord.PaidAt = DateTime.UtcNow;
-                
+
                 if (paymentRecord.Order != null)
                 {
                     paymentRecord.Order.Status = OrderStatus.Confirmed;
@@ -134,6 +134,17 @@ namespace Application.Services
             _unitOfWork.GetRepository<Payment>().Update(paymentRecord);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            if (isSuccess && paymentRecord.Order != null)
+            {
+                try
+                {
+                    await _notificationService.SendOrderConfirmationAsync(paymentRecord.Order);
+                }
+                catch
+                {
+                }
+            }
+
             var responseDto = new PaymentResponse(
                 paymentRecord.Id,
                 paymentRecord.OrderId,
@@ -147,7 +158,7 @@ namespace Application.Services
             {
                 return Result<PaymentResponse>.Success(responseDto);
             }
-            
+
             return Result<PaymentResponse>.Failure("Payment failed.");
         }
     }

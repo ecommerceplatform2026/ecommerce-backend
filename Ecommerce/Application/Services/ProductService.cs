@@ -48,7 +48,9 @@ namespace Application.Services
                         true,
                         cancellationToken,
                         x => x.Category,
-                        x => x.ProductVariants);
+                        x => x.ProductVariants,
+                        x => x.ProductImages,
+                        x => x.Reviews);
 
                     return product?.ToProductResponse();
                 },
@@ -74,7 +76,8 @@ namespace Application.Services
                 {
                     x => x.Category,
                     x => x.ProductImages,
-                    x => x.ProductVariants
+                    x => x.ProductVariants,
+                    x => x.Reviews
                 },
                 cancellationToken: cancellationToken);
 
@@ -161,7 +164,11 @@ namespace Application.Services
             var totalCount = await query.CountAsync(cancellationToken);
 
             var products = await ApplySorting(query, request.SortBy, request.SortDirection)
+                .AsSplitQuery()
                 .Include(product => product.Category)
+                .Include(product => product.ProductVariants)
+                .Include(product => product.ProductImages)
+                .Include(product => product.Reviews)
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
@@ -187,7 +194,9 @@ namespace Application.Services
                         p => !p.IsDeleted,
                         cancellationToken,
                         x => x.Category,
-                        x => x.ProductVariants);
+                        x => x.ProductVariants,
+                        x => x.ProductImages,
+                        x => x.Reviews);
 
                     return products.Select(p => p.ToProductResponse()).ToList();
                 },

@@ -69,6 +69,10 @@ builder.Services
         "VnPaySettings must include TmnCode, HashSecret, PaymentUrl, and ReturnUrl.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<MailSettings>()
+    .Bind(builder.Configuration.GetSection("MailSettings"));
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 
