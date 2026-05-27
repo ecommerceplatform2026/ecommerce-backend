@@ -1,11 +1,13 @@
 using Application.DTOs.Auth;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Presentation.Common.Extensions;
 
 namespace Presentation.Controllers
 {
     [ApiController]
+    [EnableRateLimiting("auth-limiter")]
     [Route("api/auth")]
     public class AuthController : ControllerBase
     {

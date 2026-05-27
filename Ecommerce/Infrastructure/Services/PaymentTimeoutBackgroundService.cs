@@ -1,4 +1,6 @@
+using Application.Common.Caching;
 using Application.Interfaces.Repositories.Base;
+using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -71,44 +73,71 @@ namespace Infrastructure.Services
                 return;
             }
 
+            var cacheService = scope.ServiceProvider.GetRequiredService<ICacheService>();
+
             _logger.LogInformation("Found {Count} expired payments to cancel.", expiredPayments.Count);
 
             foreach (var payment in expiredPayments)
             {
-                using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
-                try
+                var strategy = unitOfWork.CreateExecutionStrategy();
+                await strategy.ExecuteAsync(async () =>
                 {
-                    payment.Status = PaymentStatus.Failed;
-                    unitOfWork.GetRepository<Payment>().Update(payment);
-
-                    var order = payment.Order;
-                    if (order != null)
+                    using var transaction = await unitOfWork.BeginTransactionAsync(cancellationToken);
+                    try
                     {
-                        order.Status = OrderStatus.Cancelled;
-                        unitOfWork.GetRepository<Order>().Update(order);
+                        payment.Status = PaymentStatus.Failed;
+                        unitOfWork.GetRepository<Payment>().Update(payment);
 
-                        foreach (var orderItem in order.OrderItems)
+                        var productIdsToInvalidate = new HashSet<Guid>();
+                        var order = payment.Order;
+                        if (order != null)
                         {
-                            var variant = await unitOfWork.GetRepository<ProductVariant>()
-                                .FindAsync(pv => pv.Id == orderItem.ProductVariantId, asNoTracking: false, cancellationToken);
+                            order.Status = OrderStatus.Cancelled;
+                            unitOfWork.GetRepository<Order>().Update(order);
 
-                            if (variant != null)
+                            foreach (var orderItem in order.OrderItems)
                             {
-                                variant.UpdateStock(variant.Stock + orderItem.Quantity);
-                                unitOfWork.GetRepository<ProductVariant>().Update(variant);
+                                var variant = await unitOfWork.GetRepository<ProductVariant>()
+                                    .FindAsync(pv => pv.Id == orderItem.ProductVariantId, asNoTracking: false, cancellationToken);
+
+                                if (variant != null)
+                                {
+                                    variant.UpdateStock(variant.Stock + orderItem.Quantity);
+                                    unitOfWork.GetRepository<ProductVariant>().Update(variant);
+
+                                    productIdsToInvalidate.Add(variant.ProductId);
+                                }
                             }
                         }
+
+                        await unitOfWork.SaveChangesAsync(cancellationToken);
+                        await transaction.CommitAsync(cancellationToken);
+
+                        if (productIdsToInvalidate.Any())
+                        {
+                            try
+                            {
+                                await cacheService.RemoveAsync(CacheKeys.ProductsAll, cancellationToken);
+                                foreach (var productId in productIdsToInvalidate)
+                                {
+                                    await cacheService.RemoveAsync(CacheKeys.GetProductDetailKey(productId), cancellationToken);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to invalidate product cache after cancelling expired payment for order code {OrderCode}.", payment.OrderCode);
+                            }
+                        }
+
+                        _logger.LogInformation("Successfully cancelled expired order {OrderCode} and restored inventory.", payment.OrderCode);
                     }
-
-                    await unitOfWork.SaveChangesAsync(cancellationToken);
-                    await transaction.CommitAsync(cancellationToken);
-
-                    _logger.LogInformation("Successfully cancelled expired order {OrderCode} and restored inventory.", payment.OrderCode);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to cancel expired payment for order code {OrderCode}.", payment.OrderCode);
-                }
+                    catch (Exception ex)
+                    {
+                        await transaction.RollbackAsync(cancellationToken);
+                        _logger.LogError(ex, "Failed to cancel expired payment for order code {OrderCode}.", payment.OrderCode);
+                        throw;
+                    }
+                });
             }
         }
     }

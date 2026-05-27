@@ -4,6 +4,8 @@ using Infrastructure.Data;
 using Infrastructure.DependencyInjection;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -125,7 +127,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddDbContext<EcommerceContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        npgsqlOptions => npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(5),
+            errorCodesToAdd: null)));
 
 var allowedOrigins = builder.Configuration
     .GetSection("CorsSettings:AllowedOrigins")
@@ -150,6 +157,53 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddApplicationServices();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("auth-limiter", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 5,
+                QueueLimit = 0,
+                Window = TimeSpan.FromSeconds(60)
+            }));
+
+    options.AddPolicy("checkout-limiter", httpContext =>
+    {
+        var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            ?? httpContext.Connection.RemoteIpAddress?.ToString() 
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userId,
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 10,
+                QueueLimit = 0,
+                Window = TimeSpan.FromSeconds(60)
+            });
+    });
+
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        
+        var response = new ApiResponse<object>
+        {
+            Success = false,
+            Data = null,
+            Errors = new List<string> { "Too many requests. Please try again later." }
+        };
+        
+        var json = System.Text.Json.JsonSerializer.Serialize(response);
+        await context.HttpContext.Response.WriteAsync(json, cancellationToken: token);
+    };
+});
+
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
@@ -167,6 +221,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();

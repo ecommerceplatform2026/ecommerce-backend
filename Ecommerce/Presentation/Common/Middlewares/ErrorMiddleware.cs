@@ -1,4 +1,5 @@
-﻿using Presentation.Common.Responses;
+using Microsoft.EntityFrameworkCore;
+using Presentation.Common.Responses;
 using System.Text.Json;
 
 namespace Presentation.Common.Middlewares;
@@ -22,20 +23,48 @@ public class ErrorMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, ex.Message);
-
             context.Response.ContentType = "application/json";
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            var errors = new List<string>();
+
+            switch (ex)
+            {
+                case ArgumentException or InvalidOperationException:
+                    _logger.LogWarning(ex, "A bad request exception occurred: {Message}", ex.Message);
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    errors.Add("Invalid request parameters or operation.");
+                    break;
+
+                case KeyNotFoundException:
+                    _logger.LogWarning(ex, "A not found exception occurred: {Message}", ex.Message);
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    errors.Add("The requested resource was not found.");
+                    break;
+
+                case UnauthorizedAccessException:
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    errors.Add("Unauthorized access.");
+                    break;
+
+                case DbUpdateConcurrencyException:
+                    context.Response.StatusCode = StatusCodes.Status409Conflict;
+                    errors.Add("A concurrency conflict occurred. Please try again.");
+                    break;
+
+                default:
+                    _logger.LogError(ex, "An unhandled exception occurred: {Message}", ex.Message);
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    errors.Add("Internal server error");
+                    break;
+            }
 
             var response = new ApiResponse<object>
             {
                 Success = false,
                 Data = null,
-                Errors = new List<string> { "Internal server error" } 
+                Errors = errors
             };
 
             var json = JsonSerializer.Serialize(response);
-
             await context.Response.WriteAsync(json);
         }
     }
