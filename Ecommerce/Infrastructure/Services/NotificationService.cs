@@ -37,20 +37,20 @@ namespace Infrastructure.Services
 
             try
             {
-                var recipientName = "Customer";
-                var recipientEmail = "customer@ecommerce.com";
-
                 var user = order.User;
                 if (user == null)
                 {
                     user = await _unitOfWork.GetRepository<User>().GetByIdAsync(order.UserId);
                 }
 
-                if (user != null)
+                if (user == null)
                 {
-                    recipientName = user.FullName;
-                    recipientEmail = user.Email;
+                    _logger.LogWarning("User not found for order #{OrderCode}. Order confirmation email skipped.", order.OrderCode);
+                    return;
                 }
+
+                var recipientName = user.FullName;
+                var recipientEmail = user.Email;
 
                 var (itemsHtml, itemsText) = await RenderOrderItemsAsync(order);
 
@@ -58,11 +58,10 @@ namespace Infrastructure.Services
 
                 var textContent = await GetTextBodyAsync(order, recipientName, recipientEmail, itemsText);
 
-                await AppendEmailLogFileAsync(textContent);
-
                 if (string.IsNullOrWhiteSpace(_mailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_mailSettings.From))
                 {
                     _logger.LogWarning("SMTP settings are not configured. Skipped sending email to {Email}, printed to emails.log instead.", recipientEmail);
+                    await AppendEmailLogFileAsync(textContent);
                     return;
                 }
 
@@ -127,12 +126,12 @@ namespace Infrastructure.Services
 
             var html = await File.ReadAllTextAsync(templatePath);
             return html
-                .Replace("{RecipientName}", recipientName)
-                .Replace("{OrderCode}", order.OrderCode.ToString())
-                .Replace("{OrderDate}", order.CreatedAt.ToString())
-                .Replace("{PaymentMethod}", order.PaymentMethod.ToString())
-                .Replace("{OrderStatus}", order.Status.ToString())
-                .Replace("{TotalAmount}", order.TotalAmount.Amount.ToString("N0"))
+                .Replace("{RecipientName}", WebUtility.HtmlEncode(recipientName))
+                .Replace("{OrderCode}", WebUtility.HtmlEncode(order.OrderCode.ToString()))
+                .Replace("{OrderDate}", WebUtility.HtmlEncode(order.CreatedAt.ToString()))
+                .Replace("{PaymentMethod}", WebUtility.HtmlEncode(order.PaymentMethod.ToString()))
+                .Replace("{OrderStatus}", WebUtility.HtmlEncode(order.Status.ToString()))
+                .Replace("{TotalAmount}", WebUtility.HtmlEncode(order.TotalAmount.Amount.ToString("N0")))
                 .Replace("{ItemsHtml}", itemsHtml);
         }
 
@@ -241,10 +240,14 @@ namespace Infrastructure.Services
                     variantDetails = $" ({string.Join(", ", new[] { color, size }.Where(s => !string.IsNullOrEmpty(s)))})";
                 }
 
+                var encodedProductName = WebUtility.HtmlEncode(productName);
+                var encodedSku = WebUtility.HtmlEncode(sku);
+                var encodedVariantDetails = WebUtility.HtmlEncode(variantDetails);
+
                 var rowHtml = htmlTemplate
-                    .Replace("{ProductName}", productName)
-                    .Replace("{VariantDetails}", variantDetails)
-                    .Replace("{SKU}", sku)
+                    .Replace("{ProductName}", encodedProductName)
+                    .Replace("{VariantDetails}", encodedVariantDetails)
+                    .Replace("{SKU}", encodedSku)
                     .Replace("{Quantity}", item.Quantity.ToString())
                     .Replace("{Price}", item.Price.Amount.ToString("N0"));
                 htmlBuilder.Append(rowHtml);
