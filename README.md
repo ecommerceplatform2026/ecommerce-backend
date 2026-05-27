@@ -7,13 +7,13 @@ The platform is designed following **Clean Architecture** principles and include
 ---
 
 ## 📖 Table of Contents
-1. [Tech Stack](#-tech-stack)
-2. [Setup & Installation Guide](#-setup--installation-guide)
-3. [Architecture Overview](#-architecture-overview)
-4. [Database Design](#-database-design)
-5. [Caching Strategy](#-caching-strategy)
-6. [API Catalog Reference](#-api-catalog-reference)
-7. [Resilience & Concurrency Edge Cases](#-resilience--concurrency-edge-cases)
+1. [Tech Stack](#tech-stack)
+2. [Setup & Installation Guide](#setup--installation-guide)
+3. [Architecture Overview](#architecture-overview)
+4. [Database Design](#database-design)
+5. [Caching Strategy](#caching-strategy)
+6. [API Catalog Reference](#api-catalog-reference)
+7. [Concurrency & Resilience Engineering](#concurrency--resilience-engineering)
 
 ---
 
@@ -70,7 +70,7 @@ Update or create `appsettings.Development.json` under `Ecommerce/Presentation/`:
     "TmnCode": "your-vnpay-terminal-code",
     "HashSecret": "your-vnpay-secure-hash-secret",
     "PaymentUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html",
-    "ReturnUrl": "https://localhost:7068/api/payments/vnpay-return"
+    "ReturnUrl": "https://localhost:<httpsPort>/api/payments/vnpay-return"
   },
   "MailSettings": {
     "SmtpServer": "smtp.gmail.com",
@@ -95,7 +95,7 @@ dotnet run --project Ecommerce/Presentation
 ### 5. Access Interactive Documentation
 Open the interactive Swagger OpenAPI UI at:
 ```text
-https://localhost:7068/swagger
+https://localhost:<port>/swagger
 ```
 
 ---
@@ -241,12 +241,13 @@ When multiple users checkout the same item simultaneously:
    ```
 2. **Detection & Rollback**: If another thread modified the stock in the meantime, EF Core throws a `DbUpdateConcurrencyException`. The active database transaction rolls back.
 3. **Change Tracker Clean & Reload**: The system invokes `_unitOfWork.ClearTracker()` to purge stale tracked states and reloads fresh database records.
-4. **Retry Loop**: The process automatically retries up to **3 times** with exponential backoff delays. If the item goes completely out of stock during retries, it throws a safe validation error to the customer.
+4. **Retry Loop**: The process automatically retries up to **3 times** with linear backoff delays (for example, `100 ms × attempt`). If the item goes completely out of stock during retries, it throws a safe validation error to the customer.
 
 ### 2. Built-in Partitioned Rate Limiting
 Protects the platform's sensitive public routes:
-- **Authentication Routes** (`auth-limiter`): Allows up to **5 requests per 60 seconds**, partitioned strictly **by client Remote IP Address**.
-- **Checkout Route** (`checkout-limiter`): Allows up to **10 requests per 60 seconds**, partitioned strictly **by authenticated User ID**.
+- **Authentication Routes** (`auth-limiter`): Allows up to **5 requests per 60 seconds**, partitioned **by client `RemoteIpAddress`, with fallback to `Host` when the remote IP is unavailable**.
+- **Checkout Route** (`checkout-limiter`): Allows up to **10 requests per 60 seconds**, partitioned **by authenticated `User ID`, with fallback to `RemoteIpAddress`, and finally to `"anonymous"` when neither is available**.
+- **Proxy deployment note**: When running behind a reverse proxy or load balancer, forwarded headers must be configured correctly so `RemoteIpAddress` reflects the real client IP instead of the proxy IP.
 
 ### 3. Fault-Tolerant Middlewares
 - **PostgreSQL Connection Retry**: The Npgsql driver is configured with `EnableRetryOnFailure(3)` to automatically recover from transient network drops between the web server and database server.
