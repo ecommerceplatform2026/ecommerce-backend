@@ -52,5 +52,20 @@ namespace Domain.Entities
                 LoyaltyTransactionStatus.Pending,
                 "Points earned from delivered order.");
         }
+
+        public void Complete()
+        {
+            if (Status == LoyaltyTransactionStatus.Completed)
+            {
+                return;
+            }
+
+            if (Status == LoyaltyTransactionStatus.Cancelled)
+            {
+                throw new InvalidOperationException("Cannot complete a cancelled loyalty transaction.");
+            }
+
+            Status = LoyaltyTransactionStatus.Completed;
+        }
     }
 }

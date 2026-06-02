@@ -97,6 +97,62 @@ namespace Application.Services
             return Result<int>.Success(points);
         }
 
+        public async Task<Result<int>> CompletePendingTransactionsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+        {
+            if (orderId == Guid.Empty)
+            {
+                return Result<int>.Failure("Order ID cannot be empty.");
+            }
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == orderId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken,
+                    o => o.LoyaltyTransactions);
+
+            if (order == null)
+            {
+                return Result<int>.NotFound("Order not found.");
+            }
+
+            if (order.Status != OrderStatus.Completed)
+            {
+                return Result<int>.Failure("Points can only be completed for completed orders.");
+            }
+
+            var pendingTransactions = order.LoyaltyTransactions
+                .Where(t => t.Status == LoyaltyTransactionStatus.Pending && t.Type == LoyaltyTransactionType.Earn)
+                .ToList();
+
+            if (!pendingTransactions.Any())
+            {
+                return Result<int>.Success(0);
+            }
+
+            var account = await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .FindAsync(
+                    a => a.Id == pendingTransactions.First().LoyaltyAccountId && !a.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (account == null)
+            {
+                return Result<int>.Failure("Loyalty account not found.");
+            }
+
+            var totalPoints = pendingTransactions.Sum(t => t.Points);
+            foreach (var transaction in pendingTransactions)
+            {
+                transaction.Complete();
+            }
+
+            account.CompletePendingPoints(totalPoints);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<int>.Success(totalPoints);
+        }
+
         private static int CalculateEarnedPoints(Order order)
         {
             var subtotal = order.OrderItems.Sum(item => item.Price.Amount * item.Quantity);

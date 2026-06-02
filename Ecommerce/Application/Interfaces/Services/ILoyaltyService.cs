@@ -8,5 +8,6 @@ namespace Application.Interfaces.Services
     public interface ILoyaltyService
     {
         Task<Result<int>> AwardPendingPointsForDeliveredOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+        Task<Result<int>> CompletePendingTransactionsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
     }
 }

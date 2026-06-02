@@ -83,5 +83,26 @@ namespace Domain.Entities
             Status = OrderStatus.Delivered;
             AddDomainEvent(new Events.OrderDeliveredDomainEvent(this));
         }
+
+        public void MarkAsCompleted()
+        {
+            if (Status == OrderStatus.Completed)
+            {
+                return;
+            }
+
+            if (Status == OrderStatus.Cancelled || Status == OrderStatus.Returned)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as completed.");
+            }
+
+            if (Status != OrderStatus.Delivered)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as completed.");
+            }
+
+            Status = OrderStatus.Completed;
+            AddDomainEvent(new Events.OrderCompletedDomainEvent(this));
+        }
     }
 }

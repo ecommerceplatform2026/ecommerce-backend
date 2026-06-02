@@ -65,6 +65,7 @@ namespace Infrastructure.DependencyInjection
             services.AddScoped<INotificationService, NotificationService>();
             services.AddScoped<IVnPayService, VnPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
+            services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
 
             // Domain Event Publisher & Dynamic Handlers Scanning
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
