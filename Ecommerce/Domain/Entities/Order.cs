@@ -67,5 +67,21 @@ namespace Domain.Entities
 
             Status = OrderStatus.Cancelled;
         }
+
+        public void MarkAsDelivered()
+        {
+            if (Status == OrderStatus.Delivered)
+            {
+                return;
+            }
+
+            if (Status == OrderStatus.Cancelled || Status == OrderStatus.Returned)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as delivered.");
+            }
+
+            Status = OrderStatus.Delivered;
+            AddDomainEvent(new Events.OrderDeliveredDomainEvent(this));
+        }
     }
 }
