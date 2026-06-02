@@ -222,6 +222,50 @@ namespace Ecommerce.UnitTests.Services
             result.Value.Should().Be(0);
         }
 
+        [Fact]
+        public async Task CompletePendingTransactionsForOrderAsync_WhenOrderIsNotCompleted_ReturnsFailure()
+        {
+            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Delivered);
+            SetupOrder(order);
+
+            var result = await _service.CompletePendingTransactionsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Points can only be completed for completed orders.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task CompletePendingTransactionsForOrderAsync_WhenCompletedOrderHasPendingTransactions_CompletesThemAndUpdatesAccountPoints()
+        {
+            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Completed);
+            var account = LoyaltyAccount.Create(order.UserId);
+            account.AddPendingPoints(2);
+            var transaction = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 2);
+            order.LoyaltyTransactions.Add(transaction);
+
+            SetupOrder(order);
+            _accountRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>() ))
+                .ReturnsAsync(account);
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.CompletePendingTransactionsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(2);
+            transaction.Status.Should().Be(LoyaltyTransactionStatus.Completed);
+            account.PendingPoints.Should().Be(0);
+            account.AvailablePoints.Should().Be(2);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
         private void SetupOrder(Order? order)
         {
             _orderRepositoryMock
