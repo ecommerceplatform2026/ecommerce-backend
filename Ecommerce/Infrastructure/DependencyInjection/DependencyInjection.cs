@@ -78,6 +78,7 @@ namespace Infrastructure.DependencyInjection
             services.AddHttpClient<IMomoService, MomoService>();
             services.AddHttpClient<IZaloPayService, ZaloPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
+            services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
 
             // Domain Event Publisher & Dynamic Handlers Scanning
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();

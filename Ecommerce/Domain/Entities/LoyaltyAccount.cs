@@ -37,5 +37,17 @@ namespace Domain.Entities
 
             PendingPoints += points;
         }
+
+        public void CompletePendingPoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+
+            if (PendingPoints < points)
+                throw new InvalidOperationException("Not enough pending points to complete.");
+
+            PendingPoints -= points;
+            AvailablePoints += points;
+        }
     }
 }
