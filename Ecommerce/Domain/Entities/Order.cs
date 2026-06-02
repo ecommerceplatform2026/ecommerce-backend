@@ -17,6 +17,7 @@ namespace Domain.Entities
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public virtual Payment? Payment { get; set; }
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+        public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = new List<LoyaltyTransaction>();
 
         private Order() { }
 
