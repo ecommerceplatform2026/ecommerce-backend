@@ -12,12 +12,10 @@ namespace Presentation.Controllers
     public sealed class LoyaltyController : ControllerBase
     {
         private readonly ILoyaltyService _loyaltyService;
-        private readonly ICurrentUserService _currentUserService;
 
-        public LoyaltyController(ILoyaltyService loyaltyService, ICurrentUserService currentUserService)
+        public LoyaltyController(ILoyaltyService loyaltyService)
         {
             _loyaltyService = loyaltyService ?? throw new ArgumentNullException(nameof(loyaltyService));
-            _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         }
 
         /// <summary>
@@ -26,13 +24,7 @@ namespace Presentation.Controllers
         [HttpGet("balance")]
         public async Task<IActionResult> GetLoyaltyBalance(CancellationToken cancellationToken)
         {
-            var userId = _currentUserService.GetUserIdOrNull();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "User is not authenticated." });
-            }
-
-            var result = await _loyaltyService.GetLoyaltyBalanceAsync(userId, cancellationToken);
+            var result = await _loyaltyService.GetLoyaltyBalanceAsync(cancellationToken);
             return this.FromResult(result);
         }
 
@@ -41,23 +33,10 @@ namespace Presentation.Controllers
         /// </summary>
         [HttpGet("transactions")]
         public async Task<IActionResult> GetTransactionHistory(
-            [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 10,
+            [FromQuery] GetLoyaltyTransactionsRequest request,
             CancellationToken cancellationToken = default)
         {
-            var userId = _currentUserService.GetUserIdOrNull();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "User is not authenticated." });
-            }
-
-            // Validate pagination parameters
-            if (pageNumber < 1)
-                pageNumber = 1;
-            if (pageSize < 1 || pageSize > 100)
-                pageSize = 10;
-
-            var result = await _loyaltyService.GetTransactionHistoryAsync(userId, pageNumber, pageSize, cancellationToken);
+            var result = await _loyaltyService.GetTransactionHistoryAsync(request, cancellationToken);
             return this.FromResult(result);
         }
     }

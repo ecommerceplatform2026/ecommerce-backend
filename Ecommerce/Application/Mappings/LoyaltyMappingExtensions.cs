@@ -22,17 +22,17 @@ namespace Application.Mappings
 
             return new GetLoyaltyBalanceResponse(
                 Balance: totalBalance,
-                VndEquivalent: vndEquivalent,
+                DiscountEquivalent: vndEquivalent,
                 LastUpdated: DateTime.UtcNow);
         }
 
-        public static LoyaltyTransactionDto ToLoyaltyTransactionDto(this LoyaltyTransaction transaction)
+        public static GetLoyaltyTransactionResponse ToLoyaltyTransactionResponse(this LoyaltyTransaction transaction)
         {
             var displayPoints = transaction.Type == LoyaltyTransactionType.Earn 
                 ? transaction.Points 
                 : -transaction.Points;
 
-            return new LoyaltyTransactionDto(
+            return new GetLoyaltyTransactionResponse(
                 Id: transaction.Id,
                 Date: transaction.CreatedAt,
                 Type: transaction.Type.ToString(),

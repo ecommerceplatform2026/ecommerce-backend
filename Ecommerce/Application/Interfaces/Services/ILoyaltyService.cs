@@ -10,7 +10,7 @@ namespace Application.Interfaces.Services
     {
         Task<Result<int>> AwardPendingPointsForDeliveredOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
         Task<Result<int>> CompletePendingTransactionsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
-        Task<Result<GetLoyaltyBalanceResponse>> GetLoyaltyBalanceAsync(string userId, CancellationToken cancellationToken = default);
-        Task<Result<GetLoyaltyTransactionsResponse>> GetTransactionHistoryAsync(string userId, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
+        Task<Result<GetLoyaltyBalanceResponse>> GetLoyaltyBalanceAsync(CancellationToken cancellationToken = default);
+        Task<Result<PagedResult<GetLoyaltyTransactionResponse>>> GetTransactionHistoryAsync(GetLoyaltyTransactionsRequest request, CancellationToken cancellationToken = default);
     }
 }
