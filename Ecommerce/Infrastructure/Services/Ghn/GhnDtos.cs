@@ -18,18 +18,21 @@ namespace Infrastructure.Services.Ghn
     {
         public int ProvinceID { get; set; }
         public string ProvinceName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     public sealed class GhnDistrict
     {
         public int DistrictID { get; set; }
         public string DistrictName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     public sealed class GhnWard
     {
         public string WardCode { get; set; } = string.Empty;
         public string WardName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     // snake_case for GHN API
@@ -80,6 +83,8 @@ namespace Infrastructure.Services.Ghn
     public sealed class GhnCreateOrderResponse
     {
         public string order_code { get; set; } = string.Empty;
+        public string? sort_code { get; set; }
+        public string? trans_type { get; set; }
         public GhnFee fee { get; set; } = new();
         public long total_fee { get; set; }
         public string? expected_delivery_time { get; set; }
@@ -89,6 +94,23 @@ namespace Infrastructure.Services.Ghn
     {
         public int main_service { get; set; }
         public int insurance { get; set; }
+        public int cod_fee { get; set; }
+        public int station_do { get; set; }
+        public int station_pu { get; set; }
+        public int @return { get; set; }
+        public int r2s { get; set; }
+        public int return_again { get; set; }
+        public int coupon { get; set; }
+        public int document_return { get; set; }
+        public int double_check { get; set; }
+        public int double_check_deliver { get; set; }
+        public int pick_remote_areas_fee { get; set; }
+        public int deliver_remote_areas_fee { get; set; }
+        public int pick_remote_areas_fee_return { get; set; }
+        public int deliver_remote_areas_fee_return { get; set; }
+        public int cod_failed_fee { get; set; }
+        public int change_to_address_fee { get; set; }
+        public int change_return_address_fee { get; set; }
     }
 
     /// <summary>

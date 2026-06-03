@@ -27,7 +27,9 @@ namespace Infrastructure.Services.Ghn
                 return (false, null, null, "Failed to fetch provinces from GHN.");
 
             var p = provinces.Data.FirstOrDefault(x =>
-                x.ProvinceName.Contains(province, StringComparison.OrdinalIgnoreCase));
+                x.ProvinceName.Contains(province, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(province, StringComparison.OrdinalIgnoreCase))));
             if (p == null) return (false, null, null, $"Province '{province}' not found.");
 
             var districts = await _client.PostAsync<GhnDistrict[]>("master-data/district",
@@ -36,7 +38,9 @@ namespace Infrastructure.Services.Ghn
                 return (false, null, null, "Failed to fetch districts from GHN.");
 
             var d = districts.Data.FirstOrDefault(x =>
-                x.DistrictName.Contains(district, StringComparison.OrdinalIgnoreCase));
+                x.DistrictName.Contains(district, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(district, StringComparison.OrdinalIgnoreCase))));
             if (d == null) return (false, null, null, $"District '{district}' not found.");
 
             var wards = await _client.PostAsync<GhnWard[]>("master-data/ward",
@@ -45,7 +49,9 @@ namespace Infrastructure.Services.Ghn
                 return (false, null, null, "Failed to fetch wards from GHN.");
 
             var w = wards.Data.FirstOrDefault(x =>
-                x.WardName.Contains(ward, StringComparison.OrdinalIgnoreCase));
+                x.WardName.Contains(ward, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(ward, StringComparison.OrdinalIgnoreCase))));
             if (w == null) return (false, null, null, $"Ward '{ward}' not found.");
 
             return (true, d.DistrictID, w.WardCode, null);

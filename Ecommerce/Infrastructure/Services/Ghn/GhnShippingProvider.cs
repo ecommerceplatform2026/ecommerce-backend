@@ -95,11 +95,37 @@ namespace Infrastructure.Services.Ghn
 
             // long fee = long.TryParse(response.Data.total_fee, out var f) ? f : 0;
 
+            var fee = response.Data.fee;
+            var breakdown = new ShipmentFeeBreakdown(
+                mainService: fee.main_service,
+                insurance: fee.insurance,
+                codFee: fee.cod_fee,
+                stationDo: fee.station_do,
+                stationPu: fee.station_pu,
+                returns: fee.@return,
+                r2s: fee.r2s,
+                returnAgain: fee.return_again,
+                coupon: fee.coupon,
+                documentReturn: fee.document_return,
+                doubleCheck: fee.double_check,
+                doubleCheckDeliver: fee.double_check_deliver,
+                pickRemoteAreasFee: fee.pick_remote_areas_fee,
+                deliverRemoteAreasFee: fee.deliver_remote_areas_fee,
+                pickRemoteAreasFeeReturn: fee.pick_remote_areas_fee_return,
+                deliverRemoteAreasFeeReturn: fee.deliver_remote_areas_fee_return,
+                codFailedFee: fee.cod_failed_fee,
+                changeToAddressFee: fee.change_to_address_fee,
+                changeReturnAddressFee: fee.change_return_address_fee
+            );
+
             var result = new ShipmentResponse(
                 response.Data.order_code,
                 response.Data.order_code,
                 response.Data.total_fee,
-                response.Data.expected_delivery_time
+                response.Data.expected_delivery_time,
+                sortCode: response.Data.sort_code,
+                transportType: response.Data.trans_type,
+                feeBreakdown: breakdown
             );
 
             return Result<ShipmentResponse>.Success(result);
