@@ -18,6 +18,7 @@ namespace Domain.Entities
         public virtual Payment? Payment { get; set; }
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
         public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = new List<LoyaltyTransaction>();
+        public virtual Delivery? Delivery { get; set; }
 
         private Order() { }
 
@@ -58,6 +59,22 @@ namespace Domain.Entities
                 throw new InvalidOperationException($"Cannot confirm payment for an order in '{Status}' status.");
 
             Status = OrderStatus.Confirmed;
+        }
+
+        public void MarkAsProcessing()
+        {
+            if (Status != OrderStatus.Pending && Status != OrderStatus.Confirmed)
+                throw new InvalidOperationException($"Cannot mark order in '{Status}' as Processing.");
+
+            Status = OrderStatus.Processing;
+        }
+
+        public void MarkAsShipping()
+        {
+            if (Status != OrderStatus.Processing)
+                throw new InvalidOperationException($"Cannot mark order in '{Status}' as Shipping.");
+
+            Status = OrderStatus.Shipping;
         }
 
         public void Cancel()
