@@ -22,6 +22,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<ILoyaltyService, LoyaltyService>();
             services.AddScoped<IShippingService, ShippingService>();
+            services.AddScoped<IShippingWebhookHandler, GhnWebhookService>();
 
             return services;
         }

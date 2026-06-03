@@ -112,6 +112,8 @@ namespace Infrastructure.DependencyInjection
             // Register GHN provider as IShippingProvider — auto-discovered by ShippingService via IEnumerable
             services.AddScoped<IShippingProvider, GhnShippingProvider>();
 
+
+
             return services;
         }
     }

@@ -94,5 +94,54 @@ namespace Domain.Entities
             Status = DeliveryStatus.Failed;
             Note = errorMessage;
         }
+
+        public void MarkPickedUp()
+        {
+            if (Status != DeliveryStatus.Created)
+                throw new InvalidOperationException($"Cannot mark as picked up when status is {Status}.");
+            Status = DeliveryStatus.PickedUp;
+        }
+
+        public void MarkInTransit()
+        {
+            if (Status != DeliveryStatus.PickedUp)
+                throw new InvalidOperationException($"Cannot mark as in transit when status is {Status}.");
+            Status = DeliveryStatus.InTransit;
+        }
+
+        public void MarkOutForDelivery()
+        {
+            if (Status != DeliveryStatus.InTransit)
+                throw new InvalidOperationException($"Cannot mark as out for delivery when status is {Status}.");
+            Status = DeliveryStatus.OutForDelivery;
+        }
+
+        public void MarkDelivered()
+        {
+            if (Status == DeliveryStatus.Delivered)
+                return;
+            if (Status == DeliveryStatus.Cancelled || Status == DeliveryStatus.Returned || Status == DeliveryStatus.Exception)
+                throw new InvalidOperationException($"Cannot mark delivery with status '{Status}' as delivered.");
+            Status = DeliveryStatus.Delivered;
+        }
+
+        public void MarkCancelled()
+        {
+            if (Status == DeliveryStatus.Delivered)
+                throw new InvalidOperationException("Cannot cancel a delivered shipment.");
+            Status = DeliveryStatus.Cancelled;
+        }
+
+        public void MarkReturned()
+        {
+            Status = DeliveryStatus.Returned;
+        }
+
+        public void MarkException(string? errorMessage)
+        {
+            Status = DeliveryStatus.Exception;
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+                Note = errorMessage;
+        }
     }
 }
