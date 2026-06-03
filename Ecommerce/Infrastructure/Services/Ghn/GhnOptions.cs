@@ -12,5 +12,10 @@ namespace Infrastructure.Services.Ghn
         public int ServiceTypeId { get; set; } = 2;
         public int PaymentTypeId { get; set; } = 2;
         public string RequiredNote { get; set; } = "CHOTHUHANG";
+        public string FromName { get; set; } = "Shop";
+        public string FromPhone { get; set; } = "0900000000";
+        public string FromAddress { get; set; } = "123 Shop Street";
+        public int FromDistrictId { get; set; } = 1444;
+        public string FromWardCode { get; set; } = "20308";
     }
 }

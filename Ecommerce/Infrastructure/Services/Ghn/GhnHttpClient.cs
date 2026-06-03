@@ -31,6 +31,44 @@ namespace Infrastructure.Services.Ghn
             _httpClient.DefaultRequestHeaders.Add("ShopId", _options.ShopId.ToString());
         }
 
+        public async Task<GhnApiResponse<T>> GetAsync<T>(
+            string endpoint,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync(endpoint, cancellationToken);
+                var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                var result = JsonSerializer.Deserialize<GhnApiResponse<T>>(responseBody, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                return result ?? new GhnApiResponse<T>
+                {
+                    Code = (int)response.StatusCode,
+                    Message = "Failed to parse GHN response."
+                };
+            }
+            catch (HttpRequestException ex)
+            {
+                return new GhnApiResponse<T>
+                {
+                    Code = 500,
+                    Message = $"GHN API request failed: {ex.Message}"
+                };
+            }
+            catch (TaskCanceledException)
+            {
+                return new GhnApiResponse<T>
+                {
+                    Code = 408,
+                    Message = "GHN API request timed out."
+                };
+            }
+        }
+
         public async Task<GhnApiResponse<T>> PostAsync<T>(
             string endpoint,
             object payload,

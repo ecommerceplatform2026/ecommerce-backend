@@ -16,15 +16,18 @@ namespace Infrastructure.Services.Ghn
 
         private readonly GhnHttpClient _client;
         private readonly GhnLocationValidator _locationValidator;
+        private readonly GhnShopService _shopService;
         private readonly IOptions<GhnOptions> _options;
 
         public GhnShippingProvider(
             GhnHttpClient client,
             GhnLocationValidator locationValidator,
+            GhnShopService shopService,
             IOptions<GhnOptions> options)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _locationValidator = locationValidator ?? throw new ArgumentNullException(nameof(locationValidator));
+            _shopService = shopService ?? throw new ArgumentNullException(nameof(shopService));
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
@@ -52,8 +55,15 @@ namespace Infrastructure.Services.Ghn
                 category = new GhnItemCategory { level1 = string.IsNullOrEmpty(i.CategoryName) ? "Hàng hóa" : i.CategoryName }
             }).ToList();
 
+            var pickup = await _shopService.GetPickupAddressAsync(ct);
+
             var request = new GhnCreateOrderRequest
             {
+                from_name = pickup.Name,
+                from_phone = pickup.Phone,
+                from_address = pickup.Address,
+                from_district_id = pickup.DistrictId,
+                from_ward_code = pickup.WardCode,
                 to_name = info.ReceiverName,
                 to_phone = info.ReceiverPhone,
                 to_address = info.AddressLine,
@@ -74,18 +84,21 @@ namespace Infrastructure.Services.Ghn
             };
 
             var response = await _client.PostAsync<GhnCreateOrderResponse>(
-                "/v2/shipping-order/create", request, ct);
+                "v2/shipping-order/create", request, ct);
 
             if (!response.IsSuccess || response.Data == null)
                 return Result<ShipmentResponse>.Failure(
                     $"GHN API error: {response.Message}");
 
-            long fee = long.TryParse(response.Data.total_fee, out var f) ? f : 0;
+            Console.WriteLine("======================================================================================");
+            Console.WriteLine($"GHN Create Order Response: {response.Data.order_code}, Fee: {response.Data.total_fee}");
+
+            // long fee = long.TryParse(response.Data.total_fee, out var f) ? f : 0;
 
             var result = new ShipmentResponse(
                 response.Data.order_code,
                 response.Data.order_code,
-                fee,
+                response.Data.total_fee,
                 response.Data.expected_delivery_time
             );
 
