@@ -40,6 +40,11 @@ namespace Infrastructure.Services.Ghn
         public string to_address { get; set; } = string.Empty;
         public string to_ward_code { get; set; } = string.Empty;
         public int to_district_id { get; set; }
+        public string? from_name { get; set; }
+        public string? from_phone { get; set; }
+        public string? from_address { get; set; }
+        public int? from_district_id { get; set; }
+        public string? from_ward_code { get; set; }
         public int weight { get; set; }
         public int length { get; set; }
         public int width { get; set; }
@@ -76,7 +81,7 @@ namespace Infrastructure.Services.Ghn
     {
         public string order_code { get; set; } = string.Empty;
         public GhnFee fee { get; set; } = new();
-        public string total_fee { get; set; } = "0";
+        public long total_fee { get; set; }
         public string? expected_delivery_time { get; set; }
     }
 

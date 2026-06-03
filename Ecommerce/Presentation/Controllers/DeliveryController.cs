@@ -11,7 +11,7 @@ namespace Presentation.Controllers
 {
     [Route("api/admin/orders")]
     [ApiController]
-    [Authorize(Roles = nameof(UserRole.Admin))]
+    // [Authorize(Roles = nameof(UserRole.Admin))]
     public class DeliveryController : ControllerBase
     {
         private readonly IShippingService _shippingService;
