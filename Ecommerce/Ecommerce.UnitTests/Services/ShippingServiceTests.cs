@@ -170,7 +170,7 @@ namespace Ecommerce.UnitTests.Services
             var result = await _service.CreateShipmentAsync(order.Id, "", CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be("TRACK-1");
+            result.Value!.TrackingCode.Should().Be("TRACK-1");
             _providerMock.Verify(p => p.CreateShipmentAsync(
                 It.IsAny<Guid>(),
                 It.IsAny<CreateGhnShipmentRequest>(),
@@ -229,7 +229,7 @@ namespace Ecommerce.UnitTests.Services
             var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be("TRACK-001");
+            result.Value!.TrackingCode.Should().Be("TRACK-001");
 
             addedDelivery.Should().NotBeNull();
             addedDelivery!.OrderId.Should().Be(order.Id);
