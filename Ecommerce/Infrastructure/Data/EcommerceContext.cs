@@ -27,6 +27,7 @@ namespace Infrastructure.Data
         public DbSet<UserAddress> UserAddresses { get; set; }
         public DbSet<LoyaltyAccount> LoyaltyAccounts { get; set; }
         public DbSet<LoyaltyTransaction> LoyaltyTransactions { get; set; }
+        public DbSet<Delivery> Deliveries { get; set; }
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {

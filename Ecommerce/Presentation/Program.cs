@@ -95,6 +95,10 @@ builder.Services
         "ZaloPaySettings must include AppId, Key1, Key2, and CreateUrl.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<ShippingSettings>()
+    .Bind(builder.Configuration.GetSection("Shipping"));
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 
