@@ -1,0 +1,95 @@
+using Application.Common.Response;
+using Application.DTOs.Delivery;
+using Application.Interfaces.Services;
+using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Infrastructure.Services.Ghn
+{
+    public sealed class GhnShippingProvider : IShippingProvider
+    {
+        public string CarrierCode => "GHN";
+
+        private readonly GhnHttpClient _client;
+        private readonly GhnLocationValidator _locationValidator;
+        private readonly IOptions<GhnOptions> _options;
+
+        public GhnShippingProvider(
+            GhnHttpClient client,
+            GhnLocationValidator locationValidator,
+            IOptions<GhnOptions> options)
+        {
+            _client = client ?? throw new ArgumentNullException(nameof(client));
+            _locationValidator = locationValidator ?? throw new ArgumentNullException(nameof(locationValidator));
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+        }
+
+        public async Task<Result<ShipmentResponse>> CreateShipmentAsync(
+            Guid orderId,
+            CreateGhnShipmentRequest info,
+            CancellationToken ct = default)
+        {
+            var (isValid, districtId, wardCode, error) =
+                await _locationValidator.ValidateAsync(info.Province, info.District, info.Ward, ct);
+
+            if (!isValid)
+                return Result<ShipmentResponse>.Failure(error ?? "Invalid address.");
+
+            var items = info.Items.Select(i => new GhnCreateOrderItem
+            {
+                name = i.Name,
+                code = i.Sku,
+                quantity = i.Quantity,
+                price = (int)i.Price,
+                length = _options.Value.DefaultLength,
+                width = _options.Value.DefaultWidth,
+                height = _options.Value.DefaultHeight,
+                weight = i.Weight > 0 ? i.Weight : _options.Value.DefaultWeight,
+                category = new GhnItemCategory { level1 = string.IsNullOrEmpty(i.CategoryName) ? "Hàng hóa" : i.CategoryName }
+            }).ToList();
+
+            var request = new GhnCreateOrderRequest
+            {
+                to_name = info.ReceiverName,
+                to_phone = info.ReceiverPhone,
+                to_address = info.AddressLine,
+                to_ward_code = wardCode!,
+                to_district_id = districtId!.Value,
+                weight = info.TotalWeight,
+                length = _options.Value.DefaultLength,
+                width = _options.Value.DefaultWidth,
+                height = _options.Value.DefaultHeight,
+                service_type_id = _options.Value.ServiceTypeId,
+                payment_type_id = _options.Value.PaymentTypeId,
+                required_note = _options.Value.RequiredNote,
+                cod_amount = info.CodAmount > 0 ? (int)info.CodAmount : null,
+                insurance_value = info.InsuranceValue > 0 ? (int)info.InsuranceValue : null,
+                items = items,
+                client_order_code = info.OrderCode,
+                note = info.OrderCode
+            };
+
+            var response = await _client.PostAsync<GhnCreateOrderResponse>(
+                "/v2/shipping-order/create", request, ct);
+
+            if (!response.IsSuccess || response.Data == null)
+                return Result<ShipmentResponse>.Failure(
+                    $"GHN API error: {response.Message}");
+
+            long fee = long.TryParse(response.Data.total_fee, out var f) ? f : 0;
+
+            var result = new ShipmentResponse(
+                response.Data.order_code,
+                response.Data.order_code,
+                fee,
+                response.Data.expected_delivery_time
+            );
+
+            return Result<ShipmentResponse>.Success(result);
+        }
+    }
+}
