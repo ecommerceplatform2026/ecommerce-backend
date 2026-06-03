@@ -1,4 +1,5 @@
 using Application.Common.Response;
+using Application.DTOs.Delivery;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,9 +16,9 @@ namespace Application.Interfaces.Services
         /// Create shipment for given order using specified carrier.
         /// Validates address, calls carrier API, saves tracking,
         /// transitions order to Shipping.
-        /// Returns Result with tracking code on success.
+        /// Returns full ShipmentResponse on success.
         /// </summary>
-        Task<Result<string>> CreateShipmentAsync(
+        Task<Result<ShipmentResponse>> CreateShipmentAsync(
             Guid orderId,
             string carrierCode,
             CancellationToken cancellationToken = default);
