@@ -24,5 +24,12 @@ namespace Presentation.Controllers
             var result = await _orderService.GetMyOrdersAsync(request, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetOrderById(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _orderService.GetOrderByIdAsync(id, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }
