@@ -82,5 +82,38 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.FullName.Should().Be("Updated Name");
         }
+
+        [Fact]
+        public async Task UploadAvatar_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var fileMock = new Mock<Microsoft.AspNetCore.Http.IFormFile>();
+            var content = "dummy image content";
+            var ms = new System.IO.MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+            fileMock.Setup(f => f.OpenReadStream()).Returns(ms);
+            fileMock.Setup(f => f.FileName).Returns("avatar.png");
+            fileMock.Setup(f => f.ContentType).Returns("image/png");
+
+            var userResponse = new UserResponse
+            {
+                Id = Guid.NewGuid(),
+                FullName = "Test User",
+                Avatar = "https://cloudinary.com/avatar.png"
+            };
+            var serviceResult = Result<UserResponse>.Success(userResponse);
+
+            _userServiceMock
+                .Setup(s => s.UploadAvatarAsync(It.IsAny<System.IO.Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.UploadAvatar(fileMock.Object, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<UserResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.Avatar.Should().Be("https://cloudinary.com/avatar.png");
+        }
     }
 }
