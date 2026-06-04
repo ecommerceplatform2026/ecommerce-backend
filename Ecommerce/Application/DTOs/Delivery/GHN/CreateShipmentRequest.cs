@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Application.DTOs.Delivery
+namespace Application.DTOs.Delivery.GHN
 {
     /// <summary>
     /// Carrier-agnostic input for shipment creation.

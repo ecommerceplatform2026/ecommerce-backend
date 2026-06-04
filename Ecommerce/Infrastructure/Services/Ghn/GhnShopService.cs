@@ -36,8 +36,8 @@ namespace Infrastructure.Services.Ghn
                         name: Coalesce(shop.name, opts.FromName),
                         phone: Coalesce(shop.phone, opts.FromPhone),
                         address: Coalesce(shop.address_v2, shop.address, opts.FromAddress),
-                        districtId: opts.FromDistrictId,
-                        wardCode: Coalesce(shop.ward_id_v2 > 0 ? shop.ward_id_v2.ToString() : null, shop.ward_code, opts.FromWardCode)
+                        districtId: shop.district_id > 0 ? shop.district_id : opts.FromDistrictId,
+                        wardCode: Coalesce(shop.ward_code, opts.FromWardCode)
                     );
                 }
             }
