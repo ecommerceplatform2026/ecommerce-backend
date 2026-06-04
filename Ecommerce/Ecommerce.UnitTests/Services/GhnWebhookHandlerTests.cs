@@ -1,4 +1,5 @@
 using Application.Common.Response;
+using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
@@ -8,6 +9,7 @@ using Application.Services;
 using Moq;
 using System;
 using System.Linq.Expressions;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +21,10 @@ namespace Ecommerce.UnitTests.Services
         private readonly Mock<IGenericRepository<Delivery>> _deliveryRepoMock;
         private readonly Mock<IGenericRepository<Order>> _orderRepoMock;
         private readonly IShippingWebhookHandler _handler;
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
 
         public GhnWebhookHandlerTests()
         {
@@ -241,42 +247,36 @@ namespace Ecommerce.UnitTests.Services
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WithInvalidJson_ReturnsFailure()
+        public async Task ProcessStatusUpdateAsync_WithInvalidPayloadType_ReturnsErrorInResponse()
         {
             var result = await _handler.ProcessStatusUpdateAsync(
-                "not valid json", CancellationToken.None);
+                "not a GhnWebhookPayload", CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain(e => e.Contains("Invalid webhook payload"));
+            result.IsSuccess.Should().BeTrue();
+            var response = JsonSerializer.Deserialize<GhnWebhookResponse>(result.Value!, JsonOptions);
+            response.Should().NotBeNull();
+            response!.Reason.Should().Contain("Invalid webhook payload");
+            response.ReasonCode.Should().Be("ERROR");
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WithMissingOrderCode_ReturnsFailure()
+        public async Task ProcessStatusUpdateAsync_WithMissingOrderCode_ReturnsErrorInResponse()
         {
-            var payload = """{"status": "delivered"}""";
+            var payload = new GhnWebhookPayload { Status = "delivered", Type = "switch_status" };
 
             var result = await _handler.ProcessStatusUpdateAsync(payload, CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain(e => e.Contains("Missing order_code"));
+            result.IsSuccess.Should().BeTrue();
+            var response = JsonSerializer.Deserialize<GhnWebhookResponse>(result.Value!, JsonOptions);
+            response.Should().NotBeNull();
+            response!.Reason.Should().Contain("Missing OrderCode");
+            response.ReasonCode.Should().Be("ERROR");
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WithMissingStatus_ReturnsFailure()
-        {
-            var payload = """{"order_code": "FFFNL9HH"}""";
-
-            var result = await _handler.ProcessStatusUpdateAsync(payload, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain(e => e.Contains("Missing status"));
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task ProcessStatusUpdateAsync_WhenDeliveryNotFound_ReturnsNotFound()
+        public async Task ProcessStatusUpdateAsync_WhenDeliveryNotFound_ReturnsErrorInResponse()
         {
             _deliveryRepoMock
                 .Setup(r => r.FindAsync(
@@ -291,13 +291,16 @@ namespace Ecommerce.UnitTests.Services
             var result = await _handler.ProcessStatusUpdateAsync(
                 BuildPayload("UNKNOWN", "delivered"), CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Delivery with carrier order code 'UNKNOWN' not found.");
+            result.IsSuccess.Should().BeTrue();
+            var response = JsonSerializer.Deserialize<GhnWebhookResponse>(result.Value!, JsonOptions);
+            response.Should().NotBeNull();
+            response!.Reason.Should().Contain("not found");
+            response.OrderCode.Should().Be("UNKNOWN");
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WhenOrderNotFound_ReturnsNotFound()
+        public async Task ProcessStatusUpdateAsync_WhenOrderNotFound_ReturnsErrorInResponse()
         {
             var (delivery, _) = CreateShipment(DeliveryStatus.Created, OrderStatus.Processing);
             SetupDelivery(delivery);
@@ -312,13 +315,15 @@ namespace Ecommerce.UnitTests.Services
             var result = await _handler.ProcessStatusUpdateAsync(
                 BuildPayload("FFFNL9HH", "picking"), CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain(e => e.Contains("Order for delivery"));
+            result.IsSuccess.Should().BeTrue();
+            var response = JsonSerializer.Deserialize<GhnWebhookResponse>(result.Value!, JsonOptions);
+            response.Should().NotBeNull();
+            response!.Reason.Should().Contain("Order for delivery");
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WithInvalidStateTransition_ReturnsFailure()
+        public async Task ProcessStatusUpdateAsync_WithAnyTransition_UpdatesStatus()
         {
             var (delivery, order) = CreateShipment(DeliveryStatus.Delivered, OrderStatus.Delivered);
             SetupDelivery(delivery);
@@ -327,8 +332,9 @@ namespace Ecommerce.UnitTests.Services
             var result = await _handler.ProcessStatusUpdateAsync(
                 BuildPayload("FFFNL9HH", "picking"), CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+            result.IsSuccess.Should().BeTrue();
+            delivery.Status.Should().Be(DeliveryStatus.PickedUp);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
@@ -348,7 +354,7 @@ namespace Ecommerce.UnitTests.Services
         }
 
         [Fact]
-        public async Task ProcessStatusUpdateAsync_WithUnknownGhnStatus_ReturnsFailure()
+        public async Task ProcessStatusUpdateAsync_WithUnknownGhnStatus_ReturnsErrorInResponse()
         {
             var (delivery, order) = CreateShipment(DeliveryStatus.Created, OrderStatus.Processing);
             SetupDelivery(delivery);
@@ -357,8 +363,10 @@ namespace Ecommerce.UnitTests.Services
             var result = await _handler.ProcessStatusUpdateAsync(
                 BuildPayload("FFFNL9HH", "unknown_status"), CancellationToken.None);
 
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain(e => e.Contains("Unknown GHN status"));
+            result.IsSuccess.Should().BeTrue();
+            var response = JsonSerializer.Deserialize<GhnWebhookResponse>(result.Value!, JsonOptions);
+            response.Should().NotBeNull();
+            response!.Reason.Should().Contain("Unknown GHN status");
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
@@ -404,13 +412,16 @@ namespace Ecommerce.UnitTests.Services
             return (delivery, order);
         }
 
-        private static string BuildPayload(string orderCode, string status, string? reason = null)
+        private static GhnWebhookPayload BuildPayload(string orderCode, string status, string? reason = null, string type = "switch_status")
         {
-            var data = reason != null
-                ? $@",""data"":{{""current_status"":""{status}"",""previous_status"":"""",""order_code"":""{orderCode}"",""reason"":""{reason}""}}"
-                : "";
-            return
-                $@"{{""order_code"":""{orderCode}"",""status"":""{status}"",""timestamp"":""2026-06-03T14:00:00Z""{data}}}";
+            return new GhnWebhookPayload
+            {
+                OrderCode = orderCode,
+                Status = status,
+                Type = type,
+                Time = "2026-06-03T14:00:00Z",
+                Reason = reason ?? ""
+            };
         }
 
         private static void SetOrderStatus(Order order, OrderStatus status)

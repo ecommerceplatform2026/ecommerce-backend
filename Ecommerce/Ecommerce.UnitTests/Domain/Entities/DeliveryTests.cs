@@ -152,14 +152,13 @@ namespace Ecommerce.UnitTests.EntityTests
         }
 
         [Fact]
-        public void MarkPickedUp_WhenNotCreated_ThrowsInvalidOperationException()
+        public void MarkPickedUp_FromAnyStatus_SetsStatusPickedUp()
         {
             var delivery = CreatePendingDelivery();
 
-            Action act = () => delivery.MarkPickedUp();
+            delivery.MarkPickedUp();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark as picked up when status is Pending.");
+            delivery.Status.Should().Be(DeliveryStatus.PickedUp);
         }
 
         [Fact]
@@ -175,15 +174,13 @@ namespace Ecommerce.UnitTests.EntityTests
         }
 
         [Fact]
-        public void MarkInTransit_WhenNotPickedUp_ThrowsInvalidOperationException()
+        public void MarkInTransit_FromAnyStatus_SetsStatusInTransit()
         {
             var delivery = CreatePendingDelivery();
-            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
 
-            Action act = () => delivery.MarkInTransit();
+            delivery.MarkInTransit();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark as in transit when status is Created.");
+            delivery.Status.Should().Be(DeliveryStatus.InTransit);
         }
 
         [Fact]
@@ -200,16 +197,13 @@ namespace Ecommerce.UnitTests.EntityTests
         }
 
         [Fact]
-        public void MarkOutForDelivery_WhenNotInTransit_ThrowsInvalidOperationException()
+        public void MarkOutForDelivery_FromAnyStatus_SetsStatusOutForDelivery()
         {
             var delivery = CreatePendingDelivery();
-            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
-            delivery.MarkPickedUp();
 
-            Action act = () => delivery.MarkOutForDelivery();
+            delivery.MarkOutForDelivery();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark as out for delivery when status is PickedUp.");
+            delivery.Status.Should().Be(DeliveryStatus.OutForDelivery);
         }
 
         [Fact]
@@ -242,42 +236,39 @@ namespace Ecommerce.UnitTests.EntityTests
         }
 
         [Fact]
-        public void MarkDelivered_WhenCancelled_ThrowsInvalidOperationException()
+        public void MarkDelivered_WhenCancelled_SetsStatusDelivered()
         {
             var delivery = CreatePendingDelivery();
             delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
             delivery.MarkCancelled();
 
-            Action act = () => delivery.MarkDelivered();
+            delivery.MarkDelivered();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark delivery with status 'Cancelled' as delivered.");
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
         }
 
         [Fact]
-        public void MarkDelivered_WhenReturned_ThrowsInvalidOperationException()
+        public void MarkDelivered_WhenReturned_SetsStatusDelivered()
         {
             var delivery = CreatePendingDelivery();
             delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
             delivery.MarkReturned();
 
-            Action act = () => delivery.MarkDelivered();
+            delivery.MarkDelivered();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark delivery with status 'Returned' as delivered.");
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
         }
 
         [Fact]
-        public void MarkDelivered_WhenException_ThrowsInvalidOperationException()
+        public void MarkDelivered_WhenException_SetsStatusDelivered()
         {
             var delivery = CreatePendingDelivery();
             delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
-            delivery.MarkException("Lost in transit");
+            delivery.MarkException("error");
 
-            Action act = () => delivery.MarkDelivered();
+            delivery.MarkDelivered();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot mark delivery with status 'Exception' as delivered.");
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
         }
 
         [Fact]
@@ -292,19 +283,13 @@ namespace Ecommerce.UnitTests.EntityTests
         }
 
         [Fact]
-        public void MarkCancelled_WhenDelivered_ThrowsInvalidOperationException()
+        public void MarkCancelled_FromAnyStatus_SetsStatusCancelled()
         {
             var delivery = CreatePendingDelivery();
-            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
-            delivery.MarkPickedUp();
-            delivery.MarkInTransit();
-            delivery.MarkOutForDelivery();
-            delivery.MarkDelivered();
 
-            Action act = () => delivery.MarkCancelled();
+            delivery.MarkCancelled();
 
-            act.Should().Throw<InvalidOperationException>()
-                .WithMessage("Cannot cancel a delivered shipment.");
+            delivery.Status.Should().Be(DeliveryStatus.Cancelled);
         }
 
         [Fact]

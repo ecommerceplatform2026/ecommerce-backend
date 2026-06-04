@@ -1,3 +1,4 @@
+using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -5,7 +6,6 @@ using Presentation.Common.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,7 +40,7 @@ namespace Presentation.Controllers
         [HttpPost("webhook/status")]
         public async Task<IActionResult> HandleDeliveryStatus(
             [FromQuery] string carrier,
-            [FromBody] JsonElement payload)
+            [FromBody] GhnWebhookPayload payload)
         {
             var handler = _handlers.FirstOrDefault(h =>
                 h.CarrierCode.Equals(carrier, StringComparison.OrdinalIgnoreCase));
@@ -48,12 +48,9 @@ namespace Presentation.Controllers
             if (handler == null)
                 return Ok(new { success = false, message = $"Unknown carrier '{carrier}'." });
 
-            var result = await handler.ProcessStatusUpdateAsync(payload.GetRawText(), CancellationToken.None);
+            var result = await handler.ProcessStatusUpdateAsync(payload, CancellationToken.None);
 
-            if (!result.IsSuccess)
-                return Ok(new { success = false, message = string.Join("; ", result.Errors) });
-
-            return Ok(new { success = true });
+            return Content(result.Value ?? "{}", "application/json");
         }
     }
 }

@@ -7,6 +7,6 @@ namespace Application.Interfaces.Services
     public interface IShippingWebhookHandler
     {
         string CarrierCode { get; }
-        Task<Result<bool>> ProcessStatusUpdateAsync(string payload, CancellationToken cancellationToken = default);
+        Task<Result<string>> ProcessStatusUpdateAsync(object payload, CancellationToken cancellationToken = default);
     }
 }

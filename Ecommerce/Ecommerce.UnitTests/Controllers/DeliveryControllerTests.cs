@@ -1,4 +1,5 @@
 using Application.DTOs.Delivery;
+using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Services;
 using Application.Common.Response;
 using FluentAssertions;
@@ -23,6 +24,10 @@ namespace Ecommerce.UnitTests.Controllers
         private readonly Mock<IShippingWebhookHandler> _webhookHandlerMock;
         private readonly DeliveryController _controller;
         private static readonly ShipmentResponse SampleResponse = new("TRACK-001", "ORD-001", 35_000, "2026-06-05");
+        private static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
 
         public DeliveryControllerTests()
         {
@@ -105,47 +110,32 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
-        public async Task HandleDeliveryStatus_WithValidCarrierAndSuccessfulProcessing_Returns200WithSuccess()
+        public async Task HandleDeliveryStatus_WithValidPayload_ReturnsHandlerResponse()
         {
-            var payload = JsonSerializer.Serialize(new { order_code = "FFFNL9HH", status = "delivered" });
+            var payload = new GhnWebhookPayload { OrderCode = "FFFNL9HH", Status = "delivered", Type = "switch_status" };
+            var responseJson = JsonSerializer.Serialize(new GhnWebhookResponse
+            {
+                OrderCode = "FFFNL9HH",
+                Status = "delivered",
+                Type = "switch_status"
+            });
 
             _webhookHandlerMock
                 .Setup(h => h.ProcessStatusUpdateAsync(payload, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<bool>.Success(true));
+                .ReturnsAsync(Result<string>.Success(responseJson));
 
-            var result = await _controller.HandleDeliveryStatus("GHN", JsonDocument.Parse(payload).RootElement);
+            var result = await _controller.HandleDeliveryStatus("GHN", payload);
 
-            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var response = okResult.Value;
-            response.Should().NotBeNull();
-            var success = response!.GetType().GetProperty("success")?.GetValue(response);
-            success.Should().Be(true);
-        }
-
-        [Fact]
-        public async Task HandleDeliveryStatus_WithValidCarrierAndFailedProcessing_Returns200WithErrorMessage()
-        {
-            var payload = JsonSerializer.Serialize(new { order_code = "FFFNL9HH", status = "unknown" });
-
-            _webhookHandlerMock
-                .Setup(h => h.ProcessStatusUpdateAsync(payload, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<bool>.Failure("Unknown GHN status"));
-
-            var result = await _controller.HandleDeliveryStatus("GHN", JsonDocument.Parse(payload).RootElement);
-
-            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var response = okResult.Value;
-            response.Should().NotBeNull();
-            var success = response!.GetType().GetProperty("success")?.GetValue(response);
-            success.Should().Be(false);
-            var message = response!.GetType().GetProperty("message")?.GetValue(response);
-            message.Should().Be("Unknown GHN status");
+            var contentResult = result.Should().BeOfType<ContentResult>().Subject;
+            contentResult.Content.Should().Be(responseJson);
+            contentResult.ContentType.Should().Be("application/json");
         }
 
         [Fact]
         public async Task HandleDeliveryStatus_WithUnknownCarrier_Returns200WithErrorMessage()
         {
-            var result = await _controller.HandleDeliveryStatus("UNKNOWN", JsonDocument.Parse("{}").RootElement);
+            var payload = new GhnWebhookPayload();
+            var result = await _controller.HandleDeliveryStatus("UNKNOWN", payload);
 
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
             var response = okResult.Value;
@@ -163,7 +153,8 @@ namespace Ecommerce.UnitTests.Controllers
                 _shippingServiceMock.Object,
                 Enumerable.Empty<IShippingWebhookHandler>());
 
-            var result = await controller.HandleDeliveryStatus("GHN", JsonDocument.Parse("{}").RootElement);
+            var payload = new GhnWebhookPayload();
+            var result = await controller.HandleDeliveryStatus("GHN", payload);
 
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
             var response = okResult.Value;
@@ -175,17 +166,23 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
-        public async Task HandleDeliveryStatus_AlwaysReturnsOkEvenOnFailure()
+        public async Task HandleDeliveryStatus_AlwaysReturnsOkEvenOnHandlerResponseWithError()
         {
-            var payload = JsonSerializer.Serialize(new { order_code = "FFFNL9HH", status = "delivered" });
+            var payload = new GhnWebhookPayload { OrderCode = "FFFNL9HH", Status = "delivered" };
+            var errorJson = JsonSerializer.Serialize(new GhnWebhookResponse
+            {
+                OrderCode = "FFFNL9HH",
+                Reason = "Some error",
+                ReasonCode = "ERROR"
+            });
 
             _webhookHandlerMock
                 .Setup(h => h.ProcessStatusUpdateAsync(payload, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<bool>.Failure("Some error"));
+                .ReturnsAsync(Result<string>.Success(errorJson));
 
-            var result = await _controller.HandleDeliveryStatus("GHN", JsonDocument.Parse(payload).RootElement);
+            var result = await _controller.HandleDeliveryStatus("GHN", payload);
 
-            result.Should().BeOfType<OkObjectResult>();
+            result.Should().BeOfType<ContentResult>();
         }
 
         [Fact]
@@ -193,24 +190,32 @@ namespace Ecommerce.UnitTests.Controllers
         {
             var ghtkMock = new Mock<IShippingWebhookHandler>();
             ghtkMock.Setup(h => h.CarrierCode).Returns("GHTK");
-            ghtkMock.Setup(h => h.ProcessStatusUpdateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<bool>.Failure("Should not be called"));
+            ghtkMock.Setup(h => h.ProcessStatusUpdateAsync(It.IsAny<object>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<string>.Success("{}"));
 
             var controller = new DeliveryController(
                 _shippingServiceMock.Object,
                 new IShippingWebhookHandler[] { ghtkMock.Object, _webhookHandlerMock.Object });
 
-            var payload = JsonSerializer.Serialize(new { order_code = "FFFNL9HH", status = "delivered" });
+            var payload = new GhnWebhookPayload { OrderCode = "FFFNL9HH", Status = "delivered" };
+            var responseJson = JsonSerializer.Serialize(new GhnWebhookResponse
+            {
+                OrderCode = "FFFNL9HH",
+                Status = "delivered"
+            });
+
             _webhookHandlerMock
                 .Setup(h => h.ProcessStatusUpdateAsync(payload, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<bool>.Success(true));
+                .ReturnsAsync(Result<string>.Success(responseJson));
 
-            var result = await controller.HandleDeliveryStatus("GHN", JsonDocument.Parse(payload).RootElement);
+            var result = await controller.HandleDeliveryStatus("GHN", payload);
 
-            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var success = okResult.Value!.GetType().GetProperty("success")?.GetValue(okResult.Value);
-            success.Should().Be(true);
-            _webhookHandlerMock.Verify(h => h.ProcessStatusUpdateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+            var contentResult = result.Should().BeOfType<ContentResult>().Subject;
+            contentResult.Content.Should().Be(responseJson);
+            _webhookHandlerMock.Verify(h => h.ProcessStatusUpdateAsync(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         }
+
+
     }
+
 }

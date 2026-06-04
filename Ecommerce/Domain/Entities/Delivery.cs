@@ -97,22 +97,16 @@ namespace Domain.Entities
 
         public void MarkPickedUp()
         {
-            if (Status != DeliveryStatus.Created)
-                throw new InvalidOperationException($"Cannot mark as picked up when status is {Status}.");
             Status = DeliveryStatus.PickedUp;
         }
 
         public void MarkInTransit()
         {
-            if (Status != DeliveryStatus.PickedUp)
-                throw new InvalidOperationException($"Cannot mark as in transit when status is {Status}.");
             Status = DeliveryStatus.InTransit;
         }
 
         public void MarkOutForDelivery()
         {
-            if (Status != DeliveryStatus.InTransit)
-                throw new InvalidOperationException($"Cannot mark as out for delivery when status is {Status}.");
             Status = DeliveryStatus.OutForDelivery;
         }
 
@@ -120,15 +114,11 @@ namespace Domain.Entities
         {
             if (Status == DeliveryStatus.Delivered)
                 return;
-            if (Status == DeliveryStatus.Cancelled || Status == DeliveryStatus.Returned || Status == DeliveryStatus.Exception)
-                throw new InvalidOperationException($"Cannot mark delivery with status '{Status}' as delivered.");
             Status = DeliveryStatus.Delivered;
         }
 
         public void MarkCancelled()
         {
-            if (Status == DeliveryStatus.Delivered)
-                throw new InvalidOperationException("Cannot cancel a delivered shipment.");
             Status = DeliveryStatus.Cancelled;
         }
 
@@ -142,6 +132,27 @@ namespace Domain.Entities
             Status = DeliveryStatus.Exception;
             if (!string.IsNullOrWhiteSpace(errorMessage))
                 Note = errorMessage;
+        }
+
+        public void UpdateWeight(int newWeight)
+        {
+            if (newWeight <= 0)
+                return;
+            Weight = newWeight;
+        }
+
+        public void UpdateCodAmount(long newCodAmount)
+        {
+            if (newCodAmount < 0)
+                return;
+            CodAmount = newCodAmount;
+        }
+
+        public void UpdateShippingFee(long newShippingFee)
+        {
+            if (newShippingFee < 0)
+                return;
+            ShippingFee = newShippingFee;
         }
     }
 }
