@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 using System;
 using System.Linq;
+using VNPAY.Extensions;
 
 namespace Infrastructure.DependencyInjection
 {
@@ -63,6 +64,16 @@ namespace Infrastructure.DependencyInjection
 
             services.AddScoped<ICacheService, RedisCacheService>();
             services.AddScoped<INotificationService, NotificationService>();
+
+            services.AddVnpayClient(config =>
+            {
+                var vnPaySection = configuration.GetSection("VnPay");
+                config.TmnCode = vnPaySection["TmnCode"]!;
+                config.HashSecret = vnPaySection["HashSecret"]!;
+                config.CallbackUrl = vnPaySection["ReturnUrl"]!;
+                config.BaseUrl = vnPaySection["PaymentUrl"]!;
+            });
+
             services.AddScoped<IVnPayService, VnPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
 
