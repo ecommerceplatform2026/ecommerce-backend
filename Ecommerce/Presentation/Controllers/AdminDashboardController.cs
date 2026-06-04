@@ -33,5 +33,37 @@ namespace Presentation.Controllers
             var result = await _dashboardService.GetDashboardSummaryAsync(request, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpGet("revenue-trend")]
+        public async Task<IActionResult> GetRevenueTrend([FromQuery] DashboardRequest request, CancellationToken cancellationToken)
+        {
+            if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value)
+            {
+                return BadRequest(new Common.Responses.ApiResponse<object>
+                {
+                    Success = false,
+                    Errors = new List<string> { "StartDate cannot be after EndDate." }
+                });
+            }
+
+            var result = await _dashboardService.GetRevenueTrendAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpGet("payment-methods")]
+        public async Task<IActionResult> GetPaymentMethodSummary([FromQuery] DashboardRequest request, CancellationToken cancellationToken)
+        {
+            if (request.StartDate.HasValue && request.EndDate.HasValue && request.StartDate.Value > request.EndDate.Value)
+            {
+                return BadRequest(new Common.Responses.ApiResponse<object>
+                {
+                    Success = false,
+                    Errors = new List<string> { "StartDate cannot be after EndDate." }
+                });
+            }
+
+            var result = await _dashboardService.GetPaymentMethodSummaryAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }
