@@ -9,7 +9,13 @@ namespace Application.DTOs.Order
         OrderStatus Status,
         PaymentMethod PaymentMethod,
         DateTime CreatedAt,
-        List<OrderItemResponse> Items);
+        List<OrderItemResponse> Items,
+        TrackingInfo? Tracking = null);
+
+    public sealed record TrackingInfo(
+        string TrackingCode,
+        string CarrierCode,
+        DeliveryStatus Status);
 
     public sealed record OrderItemResponse(
         Guid Id,

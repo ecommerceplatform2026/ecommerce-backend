@@ -16,7 +16,10 @@ namespace Application.Mappings
                 order.CreatedAt,
                 order.OrderItems != null
                     ? order.OrderItems.Select(oi => oi.ToOrderItemResponse()).ToList()
-                    : new System.Collections.Generic.List<OrderItemResponse>()
+                    : new List<OrderItemResponse>(),
+                order.Delivery != null
+                    ? new TrackingInfo(order.Delivery.TrackingCode, order.Delivery.CarrierCode, order.Delivery.Status)
+                    : null
             );
         }
 
