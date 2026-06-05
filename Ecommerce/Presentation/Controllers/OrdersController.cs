@@ -31,5 +31,12 @@ namespace Presentation.Controllers
             var result = await _orderService.GetOrderByIdAsync(id, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpPost("{id:guid}/cancel")]
+        public async Task<IActionResult> CancelOrder(Guid id, CancellationToken cancellationToken)
+        {
+            var result = await _orderService.CancelOrderAsync(id, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }

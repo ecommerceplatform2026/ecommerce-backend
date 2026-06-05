@@ -178,7 +178,7 @@ namespace Application.Services
                 paymentRecord.Fail();
                 if (paymentRecord.Order != null)
                 {
-                    paymentRecord.Order.Cancel();
+                    paymentRecord.Order.MarkAsCancelled();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
 
                     foreach (var orderItem in paymentRecord.Order.OrderItems)

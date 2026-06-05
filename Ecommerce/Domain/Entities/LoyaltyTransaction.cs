@@ -81,5 +81,16 @@ namespace Domain.Entities
 
             Status = LoyaltyTransactionStatus.Completed;
         }
+
+        public void Cancel()
+        {
+            if (Status == LoyaltyTransactionStatus.Cancelled)
+                return;
+
+            if (Status == LoyaltyTransactionStatus.Completed)
+                throw new InvalidOperationException("Cannot cancel a completed loyalty transaction.");
+
+            Status = LoyaltyTransactionStatus.Cancelled;
+        }
     }
 }

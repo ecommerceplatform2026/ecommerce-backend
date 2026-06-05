@@ -89,12 +89,34 @@ namespace Domain.Entities
             Status = OrderStatus.Shipping;
         }
 
-        public void Cancel()
+        public void MarkAsCancelled()
         {
-            if (Status == OrderStatus.Confirmed)
-                throw new InvalidOperationException("Cannot cancel an order that has already been confirmed and paid.");
+            if (Status == OrderStatus.Cancelled)
+                return;
+
+            if (Status == OrderStatus.Delivered || Status == OrderStatus.Completed || Status == OrderStatus.Returned)
+                throw new InvalidOperationException($"Cannot cancel an order in '{Status}' status.");
 
             Status = OrderStatus.Cancelled;
+            AddDomainEvent(new Events.OrderCancelledDomainEvent(this));
+        }
+
+        public void MarkAsReturned()
+        {
+            if (Status == OrderStatus.Returned)
+                return;
+
+            if (Status != OrderStatus.Delivered)
+                throw new InvalidOperationException($"Cannot return an order in '{Status}' status.");
+
+            Status = OrderStatus.Returned;
+            AddDomainEvent(new Events.OrderReturnedDomainEvent(this));
+        }
+
+        public bool CanBeReturned()
+        {
+            return Status == OrderStatus.Delivered
+                && CreatedAt >= DateTime.UtcNow.AddDays(-7);
         }
 
         public void MarkAsDelivered()

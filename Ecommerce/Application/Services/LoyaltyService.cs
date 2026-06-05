@@ -272,6 +272,100 @@ namespace Application.Services
             return Result<int>.Success(totalPoints);
         }
 
+        public async Task<Result<int>> RefundRedeemedPointsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+        {
+            if (orderId == Guid.Empty)
+                return Result<int>.Failure("Order ID cannot be empty.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == orderId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken,
+                    o => o.LoyaltyTransactions);
+
+            if (order == null)
+                return Result<int>.NotFound("Order not found.");
+
+            if (order.Status != OrderStatus.Cancelled)
+                return Result<int>.Failure("Redeemed points can only be refunded for cancelled orders.");
+
+            var pendingRedeemTransactions = order.LoyaltyTransactions
+                .Where(t => t.Status == LoyaltyTransactionStatus.Pending && t.Type == LoyaltyTransactionType.Redeem)
+                .ToList();
+
+            if (pendingRedeemTransactions.Count == 0)
+                return Result<int>.Success(0);
+
+            var account = await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .FindAsync(
+                    a => a.Id == pendingRedeemTransactions.First().LoyaltyAccountId && !a.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (account == null)
+                return Result<int>.Failure("Loyalty account not found.");
+
+            var totalPoints = pendingRedeemTransactions.Sum(t => t.Points);
+            foreach (var transaction in pendingRedeemTransactions)
+            {
+                transaction.Cancel();
+            }
+
+            account.AddAvailablePoints(totalPoints);
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<int>.Success(totalPoints);
+        }
+
+        public async Task<Result<int>> ReverseEarnedPointsForReturnedOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
+        {
+            if (orderId == Guid.Empty)
+                return Result<int>.Failure("Order ID cannot be empty.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == orderId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken,
+                    o => o.LoyaltyTransactions);
+
+            if (order == null)
+                return Result<int>.NotFound("Order not found.");
+
+            if (order.Status != OrderStatus.Returned)
+                return Result<int>.Failure("Earned points can only be reversed for returned orders.");
+
+            var earnTransactions = order.LoyaltyTransactions
+                .Where(t => (t.Status == LoyaltyTransactionStatus.Pending || t.Status == LoyaltyTransactionStatus.Completed)
+                    && t.Type == LoyaltyTransactionType.Earn)
+                .ToList();
+
+            if (earnTransactions.Count == 0)
+                return Result<int>.Success(0);
+
+            var totalPoints = earnTransactions.Sum(t => t.Points);
+
+            var account = await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .FindAsync(
+                    a => a.Id == earnTransactions.First().LoyaltyAccountId && !a.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (account == null)
+                return Result<int>.Failure("Loyalty account not found.");
+
+            account.ReverseEarnedPoints(totalPoints);
+
+            foreach (var transaction in earnTransactions)
+            {
+                transaction.Cancel();
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<int>.Success(totalPoints);
+        }
+
         /// <summary>
         /// Calculates the loyalty points earned from a purchase amount.
         /// Points are determined by dividing the purchase amount by the earn rate,

@@ -12,5 +12,7 @@ namespace Application.Interfaces.Services
         Task<Result<int>> CompletePendingTransactionsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
         Task<Result<RedeemPointsResponse>> RedeemPointsAtCheckoutAsync(RedeemPointsRequest request, CancellationToken cancellationToken = default);
         Task<Result<int>> CompleteRedeemedPointsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+        Task<Result<int>> RefundRedeemedPointsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+        Task<Result<int>> ReverseEarnedPointsForReturnedOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
     }
 }
