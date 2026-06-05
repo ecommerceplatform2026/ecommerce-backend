@@ -69,6 +69,16 @@ namespace Domain.Entities
             AvailablePoints += points;
         }
 
+        public void ExpirePoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+            if (AvailablePoints < points)
+                throw new InvalidOperationException("Not enough available points to expire.");
+
+            AvailablePoints -= points;
+        }
+
         public void ReverseEarnedPoints(int points)
         {
             if (points <= 0)

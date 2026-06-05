@@ -80,6 +80,7 @@ namespace Infrastructure.DependencyInjection
             services.AddHttpClient<IZaloPayService, ZaloPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
             services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
+            services.AddHostedService<PointsExpiryBackgroundService>();
 
             // Domain Event Publisher & Dynamic Handlers Scanning
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();

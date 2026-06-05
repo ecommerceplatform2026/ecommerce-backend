@@ -14,5 +14,6 @@ namespace Application.Interfaces.Services
         Task<Result<int>> CompleteRedeemedPointsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
         Task<Result<int>> RefundRedeemedPointsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
         Task<Result<int>> ReverseEarnedPointsForReturnedOrderAsync(Guid orderId, CancellationToken cancellationToken = default);
+        Task<Result<int>> ExpireInactivePointsAsync(CancellationToken cancellationToken = default);
     }
 }

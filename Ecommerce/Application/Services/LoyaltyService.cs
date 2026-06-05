@@ -6,6 +6,7 @@ using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
@@ -21,15 +22,18 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly IUniqueConstraintChecker _uniqueConstraintChecker;
         private readonly ICurrentUserService _currentUserService;
+        private readonly INotificationService _notificationService;
 
         public LoyaltyService(
             IUnitOfWork unitOfWork,
             IUniqueConstraintChecker uniqueConstraintChecker,
-            ICurrentUserService currentUserService)
+            ICurrentUserService currentUserService,
+            INotificationService notificationService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _uniqueConstraintChecker = uniqueConstraintChecker ?? throw new ArgumentNullException(nameof(uniqueConstraintChecker));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
+            _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         }
 
         private Result<Guid> GetCurrentUserId()
@@ -107,6 +111,12 @@ namespace Application.Services
             catch (Exception ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, EarnTransactionUniqueIndex))
             {
                 return Result<int>.Success(0);
+            }
+
+            var cancelled = await CancelPendingExpiredTransactionsAsync(account, cancellationToken);
+            if (cancelled)
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
 
             return Result<int>.Success(points);
@@ -316,6 +326,144 @@ namespace Application.Services
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<int>.Success(totalPoints);
+        }
+
+        public async Task<Result<int>> ExpireInactivePointsAsync(CancellationToken cancellationToken = default)
+        {
+            var now = DateTime.UtcNow;
+            var twelveMonthsAgo = now.AddMonths(-12);
+            var elevenMonthsAgo = now.AddMonths(-11);
+
+            var accounts = await LoadAccountsWithPointsAsync(cancellationToken);
+            if (!accounts.Any())
+                return Result<int>.Success(0);
+
+            var lastOrderDates = await LoadLastOrderDatesAsync(accounts, cancellationToken);
+            var expiredTxMap = await LoadExpiredTransactionsAsync(accounts, cancellationToken);
+
+            var totalExpired = 0;
+            var txRepo = _unitOfWork.GetRepository<LoyaltyTransaction>();
+
+            foreach (var account in accounts)
+            {
+                if (!lastOrderDates.TryGetValue(account.UserId, out var lastOrderDate))
+                    continue;
+
+                if (lastOrderDate >= elevenMonthsAgo)
+                    continue;
+
+                var existingExpired = expiredTxMap.GetValueOrDefault(account.Id) ?? new List<LoyaltyTransaction>();
+
+                if (lastOrderDate < twelveMonthsAgo)
+                {
+                    var expired = await ExpireAllPointsAsync(account, existingExpired, txRepo, cancellationToken);
+                    totalExpired += expired;
+                }
+                else
+                {
+                    await SendWarningIfNeededAsync(account, existingExpired, lastOrderDate, now, cancellationToken);
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Result<int>.Success(totalExpired);
+        }
+
+        private async Task<List<LoyaltyAccount>> LoadAccountsWithPointsAsync(CancellationToken ct)
+        {
+            return (await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .GetAllAsync(a => !a.IsDeleted && a.AvailablePoints > 0, ct)).ToList();
+        }
+
+        private async Task<Dictionary<Guid, DateTime>> LoadLastOrderDatesAsync(
+            List<LoyaltyAccount> accounts, CancellationToken ct)
+        {
+            var userIds = accounts.Select(a => a.UserId).ToList();
+
+            var orders = await _unitOfWork.GetRepository<Order>().GetAllAsync(
+                o => userIds.Contains(o.UserId)
+                    && o.Status == OrderStatus.Delivered
+                    && !o.IsDeleted,
+                ct);
+
+            return orders
+                .GroupBy(o => o.UserId)
+                .ToDictionary(g => g.Key, g => g.Max(o => o.CreatedAt));
+        }
+
+        private async Task<Dictionary<Guid, List<LoyaltyTransaction>>> LoadExpiredTransactionsAsync(
+            List<LoyaltyAccount> accounts, CancellationToken ct)
+        {
+            var accountIds = accounts.Select(a => a.Id).ToList();
+
+            var txs = await _unitOfWork.GetRepository<LoyaltyTransaction>().GetAllAsync(
+                t => accountIds.Contains(t.LoyaltyAccountId)
+                    && t.Type == LoyaltyTransactionType.Expired,
+                ct);
+
+            return txs
+                .GroupBy(t => t.LoyaltyAccountId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+
+        private async Task<int> ExpireAllPointsAsync(
+            LoyaltyAccount account,
+            List<LoyaltyTransaction> existingExpired,
+            IGenericRepository<LoyaltyTransaction> txRepo,
+            CancellationToken ct)
+        {
+            if (existingExpired.Any(t => t.Status == LoyaltyTransactionStatus.Completed))
+                return 0;
+
+            var pending = existingExpired.FirstOrDefault(t => t.Status == LoyaltyTransactionStatus.Pending);
+            if (pending != null)
+            {
+                pending.Complete();
+                account.ExpirePoints(pending.Points);
+                return pending.Points;
+            }
+
+            var tx = LoyaltyTransaction.CreateExpired(account.Id, account.AvailablePoints);
+            await txRepo.AddAsync(tx, ct);
+            account.ExpirePoints(account.AvailablePoints);
+            return tx.Points;
+        }
+
+        private async Task SendWarningIfNeededAsync(
+            LoyaltyAccount account,
+            List<LoyaltyTransaction> existingExpired,
+            DateTime lastOrderDate,
+            DateTime now,
+            CancellationToken ct)
+        {
+            var hasRecentWarning = existingExpired.Any(t => t.CreatedAt >= now.AddDays(-30));
+            if (hasRecentWarning)
+                return;
+
+            var pendingTx = LoyaltyTransaction.CreatePendingExpired(account.Id, account.AvailablePoints);
+            await _unitOfWork.GetRepository<LoyaltyTransaction>().AddAsync(pendingTx, ct);
+
+            var expiryDate = lastOrderDate.AddMonths(12);
+            await _notificationService.SendPointsExpiryWarningAsync(
+                account.UserId, account.AvailablePoints, expiryDate);
+        }
+
+        private async Task<bool> CancelPendingExpiredTransactionsAsync(LoyaltyAccount account, CancellationToken cancellationToken)
+        {
+            var pendingExpired = await _unitOfWork.GetRepository<LoyaltyTransaction>()
+                .FindAsync(
+                    t => t.LoyaltyAccountId == account.Id
+                        && t.Type == LoyaltyTransactionType.Expired
+                        && t.Status == LoyaltyTransactionStatus.Pending,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (pendingExpired == null)
+                return false;
+
+            pendingExpired.Cancel();
+            account.AddAvailablePoints(pendingExpired.Points);
+            return true;
         }
 
         public async Task<Result<int>> ReverseEarnedPointsForReturnedOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
