@@ -1,3 +1,4 @@
+using Domain.Common;
 using Domain.Entities;
 using Domain.Enums;
 using Domain.Events;
@@ -129,6 +130,40 @@ namespace Ecommerce.UnitTests.EntityTests
 
             act.Should().Throw<InvalidOperationException>()
                 .WithMessage("Cannot mark an order in 'Confirmed' status as completed.");
+        }
+
+        [Fact]
+        public void ApplyDiscount_ValidAmount_SetsDiscount()
+        {
+            var order = CreateOrder(OrderStatus.Pending);
+            order.AddItem(Guid.NewGuid(), 2, new Money(50000), "snapshot");
+
+            order.ApplyDiscount(30000);
+
+            order.DiscountAmount.Should().Be(30000);
+        }
+
+        [Fact]
+        public void ApplyDiscount_NegativeAmount_Throws()
+        {
+            var order = CreateOrder(OrderStatus.Pending);
+
+            Action act = () => order.ApplyDiscount(-1000);
+
+            act.Should().Throw<ArgumentException>()
+                .WithMessage("Discount amount cannot be negative.*");
+        }
+
+        [Fact]
+        public void ApplyDiscount_ExceedsTotal_Throws()
+        {
+            var order = CreateOrder(OrderStatus.Pending);
+            order.AddItem(Guid.NewGuid(), 1, new Money(50000), "snapshot");
+
+            Action act = () => order.ApplyDiscount(60000);
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("Discount cannot exceed order total.");
         }
 
         private static Order CreateOrder(OrderStatus status)
