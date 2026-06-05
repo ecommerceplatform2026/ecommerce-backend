@@ -31,6 +31,73 @@ namespace Infrastructure.Services
             _webHostEnvironment = webHostEnvironment ?? throw new ArgumentNullException(nameof(webHostEnvironment));
         }
 
+        public async Task SendPointsExpiryWarningAsync(Guid userId, int points, DateTime expiryDate)
+        {
+            try
+            {
+                var user = await _unitOfWork.GetRepository<User>().GetByIdAsync(userId);
+                if (user == null)
+                {
+                    _logger.LogWarning("User {UserId} not found. Expiry warning skipped.", userId);
+                    return;
+                }
+
+                var recipientName = user.FullName;
+                var recipientEmail = user.Email;
+                var subject = "Your loyalty points will expire soon";
+
+                var htmlBody = await GetEmailBodyAsync("PointsExpiryWarning", new()
+                {
+                    ["{RecipientName}"] = WebUtility.HtmlEncode(recipientName),
+                    ["{Points}"] = points.ToString("N0"),
+                    ["{ExpiryDate}"] = expiryDate.ToString("MMMM dd, yyyy"),
+                    ["{ShopUrl}"] = "#"
+                }, isHtml: true);
+
+                var textBody = await GetEmailBodyAsync("PointsExpiryWarning", new()
+                {
+                    ["{RecipientName}"] = recipientName,
+                    ["{Points}"] = points.ToString("N0"),
+                    ["{ExpiryDate}"] = expiryDate.ToString("MMMM dd, yyyy")
+                }, isHtml: false);
+
+                if (string.IsNullOrWhiteSpace(_mailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_mailSettings.From))
+                {
+                    _logger.LogWarning("SMTP settings not configured. Skipped sending expiry warning to {Email}, printed to emails.log instead.", recipientEmail);
+                    await AppendEmailLogFileAsync($"To: {recipientEmail}\nSubject: {subject}\n\n{textBody}");
+                    return;
+                }
+
+                using var mailMessage = new MailMessage
+                {
+                    From = new MailAddress(_mailSettings.From, _mailSettings.FromName),
+                    Subject = subject,
+                    Body = htmlBody,
+                    IsBodyHtml = true
+                };
+                mailMessage.To.Add(new MailAddress(recipientEmail, recipientName));
+
+                int smtpPort = 587;
+                if (int.TryParse(_mailSettings.Port, out var parsedPort) && parsedPort > 0)
+                {
+                    smtpPort = parsedPort;
+                }
+
+                using var smtpClient = new SmtpClient(_mailSettings.SmtpServer, smtpPort)
+                {
+                    Credentials = new NetworkCredential(_mailSettings.From, _mailSettings.Password),
+                    EnableSsl = _mailSettings.EnableSsl
+                };
+
+                await smtpClient.SendMailAsync(mailMessage);
+                _logger.LogInformation("Successfully sent expiry warning to {Email}", recipientEmail);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send expiry warning email to userId {UserId}", userId);
+            }
+        }
+
         public async Task SendOrderConfirmationAsync(Order order)
         {
             if (order == null) return;
@@ -54,9 +121,29 @@ namespace Infrastructure.Services
 
                 var (itemsHtml, itemsText) = await RenderOrderItemsAsync(order);
 
-                var htmlBody = await GetHtmlBodyAsync(order, recipientName, itemsHtml);
+                var htmlBody = await GetEmailBodyAsync("OrderConfirmation", new()
+                {
+                    ["{RecipientName}"] = WebUtility.HtmlEncode(recipientName),
+                    ["{OrderCode}"] = WebUtility.HtmlEncode(order.OrderCode.ToString()),
+                    ["{OrderDate}"] = WebUtility.HtmlEncode(order.CreatedAt.ToString()),
+                    ["{PaymentMethod}"] = WebUtility.HtmlEncode(order.PaymentMethod.ToString()),
+                    ["{OrderStatus}"] = WebUtility.HtmlEncode(order.Status.ToString()),
+                    ["{TotalAmount}"] = WebUtility.HtmlEncode(order.TotalAmount.Amount.ToString("N0")),
+                    ["{ItemsHtml}"] = itemsHtml
+                }, isHtml: true);
 
-                var textContent = await GetTextBodyAsync(order, recipientName, recipientEmail, itemsText);
+                var textContent = await GetEmailBodyAsync("OrderConfirmation", new()
+                {
+                    ["{CurrentDate}"] = DateTime.Now.ToString(),
+                    ["{RecipientName}"] = recipientName,
+                    ["{RecipientEmail}"] = recipientEmail,
+                    ["{OrderCode}"] = order.OrderCode.ToString(),
+                    ["{OrderDate}"] = order.CreatedAt.ToString(),
+                    ["{PaymentMethod}"] = order.PaymentMethod.ToString(),
+                    ["{OrderStatus}"] = order.Status.ToString(),
+                    ["{TotalAmount}"] = order.TotalAmount.Amount.ToString("N0"),
+                    ["{ItemsText}"] = itemsText
+                }, isHtml: false);
 
                 if (string.IsNullOrWhiteSpace(_mailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_mailSettings.From))
                 {
@@ -110,56 +197,29 @@ namespace Infrastructure.Services
             }
         }
 
-        private async Task<string> GetHtmlBodyAsync(Order order, string recipientName, string itemsHtml)
+        private async Task<string> GetEmailBodyAsync(string templateName, Dictionary<string, string> replacements, bool isHtml = true)
         {
-            var templatePath = Path.Combine(_webHostEnvironment.ContentRootPath, "Templates", "OrderConfirmation.html");
+            var ext = isHtml ? "html" : "txt";
+            var fileName = $"{templateName}.{ext}";
+
+            var templatePath = Path.Combine(_webHostEnvironment.ContentRootPath, "Templates", fileName);
             if (!File.Exists(templatePath))
             {
-                templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "OrderConfirmation.html");
+                templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", fileName);
             }
 
             if (!File.Exists(templatePath))
             {
-                _logger.LogError("Email template file not found at {Path}", templatePath);
-                throw new FileNotFoundException("Email template file not found.", templatePath);
+                _logger.LogError("Email template not found at {Path}", templatePath);
+                throw new FileNotFoundException("Email template not found.", templatePath);
             }
 
-            var html = await File.ReadAllTextAsync(templatePath);
-            return html
-                .Replace("{RecipientName}", WebUtility.HtmlEncode(recipientName))
-                .Replace("{OrderCode}", WebUtility.HtmlEncode(order.OrderCode.ToString()))
-                .Replace("{OrderDate}", WebUtility.HtmlEncode(order.CreatedAt.ToString()))
-                .Replace("{PaymentMethod}", WebUtility.HtmlEncode(order.PaymentMethod.ToString()))
-                .Replace("{OrderStatus}", WebUtility.HtmlEncode(order.Status.ToString()))
-                .Replace("{TotalAmount}", WebUtility.HtmlEncode(order.TotalAmount.Amount.ToString("N0")))
-                .Replace("{ItemsHtml}", itemsHtml);
-        }
-
-        private async Task<string> GetTextBodyAsync(Order order, string recipientName, string recipientEmail, string itemsText)
-        {
-            var templatePath = Path.Combine(_webHostEnvironment.ContentRootPath, "Templates", "OrderConfirmation.txt");
-            if (!File.Exists(templatePath))
+            var content = await File.ReadAllTextAsync(templatePath);
+            foreach (var (key, value) in replacements)
             {
-                templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates", "OrderConfirmation.txt");
+                content = content.Replace(key, value);
             }
-
-            if (!File.Exists(templatePath))
-            {
-                _logger.LogError("Text email template file not found at {Path}", templatePath);
-                throw new FileNotFoundException("Text email template file not found.", templatePath);
-            }
-
-            var text = await File.ReadAllTextAsync(templatePath);
-            return text
-                .Replace("{CurrentDate}", DateTime.Now.ToString())
-                .Replace("{RecipientName}", recipientName)
-                .Replace("{RecipientEmail}", recipientEmail)
-                .Replace("{OrderCode}", order.OrderCode.ToString())
-                .Replace("{OrderDate}", order.CreatedAt.ToString())
-                .Replace("{PaymentMethod}", order.PaymentMethod.ToString())
-                .Replace("{OrderStatus}", order.Status.ToString())
-                .Replace("{TotalAmount}", order.TotalAmount.Amount.ToString("N0"))
-                .Replace("{ItemsText}", itemsText);
+            return content;
         }
 
         private async Task<(string htmlRows, string textRows)> RenderOrderItemsAsync(Order order)
