@@ -67,5 +67,39 @@ namespace Ecommerce.UnitTests.EntityTests
             act.Should().Throw<InvalidOperationException>()
                 .WithMessage("Cannot complete a cancelled loyalty transaction.");
         }
+        [Fact]
+        public void Cancel_OnPending_SetsCancelled()
+        {
+            var transaction = LoyaltyTransaction.CreatePendingRedeem(Guid.NewGuid(), Guid.NewGuid(), 300);
+
+            transaction.Cancel();
+
+            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+        }
+
+        [Fact]
+        public void Cancel_OnCancelled_NoOp()
+        {
+            var transaction = LoyaltyTransaction.CreatePendingRedeem(Guid.NewGuid(), Guid.NewGuid(), 300);
+            typeof(LoyaltyTransaction)
+                .GetProperty(nameof(LoyaltyTransaction.Status), BindingFlags.Instance | BindingFlags.Public)!
+                .SetValue(transaction, LoyaltyTransactionStatus.Cancelled);
+
+            transaction.Cancel();
+
+            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+        }
+
+        [Fact]
+        public void Cancel_OnCompleted_Throws()
+        {
+            var transaction = LoyaltyTransaction.CreatePendingRedeem(Guid.NewGuid(), Guid.NewGuid(), 300);
+            transaction.Complete();
+
+            Action act = () => transaction.Cancel();
+
+            act.Should().Throw<InvalidOperationException>()
+                .WithMessage("Cannot cancel a completed loyalty transaction.");
+        }
     }
 }

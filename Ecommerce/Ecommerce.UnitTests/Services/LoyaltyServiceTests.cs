@@ -363,9 +363,9 @@ namespace Ecommerce.UnitTests.Services
                 new RedeemPointsRequest(order.Id, 800), CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.RedeemedPoints.Should().Be(400);
-            result.Value.DiscountAmount.Should().Be(40_000);
-            result.Value.RemainingBalance.Should().Be(600);
+            result.Value?.RedeemedPoints.Should().Be(400);
+            result.Value?.DiscountAmount.Should().Be(40_000);
+            result.Value?.RemainingBalance.Should().Be(600);
             account.AvailablePoints.Should().Be(600);
             order.DiscountAmount.Should().Be(40_000);
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -465,6 +465,162 @@ namespace Ecommerce.UnitTests.Services
             SetupOrder(order);
 
             var result = await _service.CompleteRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(0);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task RefundRedeemedPointsForOrderAsync_EmptyOrderId_ReturnsFailure()
+        {
+            var result = await _service.RefundRedeemedPointsForOrderAsync(Guid.Empty, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Order ID cannot be empty.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task RefundRedeemedPointsForOrderAsync_OrderNotFound_ReturnsNotFound()
+        {
+            SetupOrder(null);
+
+            var result = await _service.RefundRedeemedPointsForOrderAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Order not found.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task RefundRedeemedPointsForOrderAsync_OrderNotCancelled_ReturnsFailure()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
+            SetupOrder(order);
+
+            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Redeemed points can only be refunded for cancelled orders.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task RefundRedeemedPointsForOrderAsync_CancelledOrder_RefundsAndCancelsRedeemTx()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Cancelled);
+            var account = LoyaltyAccount.Create(Guid.NewGuid());
+            account.AddAvailablePoints(100);
+            var transaction = LoyaltyTransaction.CreatePendingRedeem(account.Id, order.Id, 300);
+            order.LoyaltyTransactions.Add(transaction);
+
+            SetupOrder(order);
+            _accountRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
+                .ReturnsAsync(account);
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(300);
+            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+            account.AvailablePoints.Should().Be(400);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task RefundRedeemedPointsForOrderAsync_NoRedeemTransactions_NoOp()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Cancelled);
+            SetupOrder(order);
+
+            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(0);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ReverseEarnedPointsForReturnedOrderAsync_EmptyOrderId_ReturnsFailure()
+        {
+            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(Guid.Empty, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Order ID cannot be empty.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ReverseEarnedPointsForReturnedOrderAsync_OrderNotFound_ReturnsNotFound()
+        {
+            SetupOrder(null);
+
+            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Order not found.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ReverseEarnedPointsForReturnedOrderAsync_OrderNotReturned_ReturnsFailure()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
+            SetupOrder(order);
+
+            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Earned points can only be reversed for returned orders.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ReverseEarnedPointsForReturnedOrderAsync_ReturnedOrder_CancelsEarnAndReversesPoints()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Returned);
+            var account = LoyaltyAccount.Create(Guid.NewGuid());
+            account.AddAvailablePoints(500);
+            var transaction = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 300);
+            order.LoyaltyTransactions.Add(transaction);
+
+            SetupOrder(order);
+            _accountRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
+                .ReturnsAsync(account);
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(300);
+            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+            account.AvailablePoints.Should().Be(200);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task ReverseEarnedPointsForReturnedOrderAsync_NoEarnTransaction_NoOp()
+        {
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Returned);
+            SetupOrder(order);
+
+            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().Be(0);
