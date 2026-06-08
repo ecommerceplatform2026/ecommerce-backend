@@ -1,5 +1,6 @@
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Security;
+using Application.Interfaces.Services;
 using Application.Services;
 using Domain.Common;
 using Domain.Entities;
@@ -21,6 +22,7 @@ namespace Ecommerce.UnitTests.Services
         private readonly Mock<IGenericRepository<Order>> _orderRepositoryMock;
         private readonly Mock<IGenericRepository<LoyaltyAccount>> _accountRepositoryMock;
         private readonly Mock<IGenericRepository<LoyaltyTransaction>> _transactionRepositoryMock;
+        private readonly Mock<ICurrentUserService> _currentUserServiceMock;
         private readonly LoyaltyService _service;
 
         public LoyaltyServiceTests()
@@ -30,6 +32,7 @@ namespace Ecommerce.UnitTests.Services
             _orderRepositoryMock = new Mock<IGenericRepository<Order>>();
             _accountRepositoryMock = new Mock<IGenericRepository<LoyaltyAccount>>();
             _transactionRepositoryMock = new Mock<IGenericRepository<LoyaltyTransaction>>();
+            _currentUserServiceMock = new Mock<ICurrentUserService>();
 
             _unitOfWorkMock
                 .Setup(u => u.GetRepository<Order>())
@@ -41,7 +44,7 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.GetRepository<LoyaltyTransaction>())
                 .Returns(_transactionRepositoryMock.Object);
 
-            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object);
+            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object, _currentUserServiceMock.Object);
         }
 
         [Fact]
