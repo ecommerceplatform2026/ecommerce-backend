@@ -7,7 +7,8 @@ namespace Domain.Enums
         Processing = 2,
         Shipping = 3,
         Delivered = 4,
-        Cancelled = 5,
-        Returned = 6
+        Completed = 5,
+        Cancelled = 6,
+        Returned = 7
     }
 }
