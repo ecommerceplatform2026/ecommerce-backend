@@ -25,6 +25,8 @@ namespace Infrastructure.Data
         public DbSet<Review> Reviews { get; set; }
         public DbSet<Payment> Payments { get; set; }
         public DbSet<UserAddress> UserAddresses { get; set; }
+        public DbSet<LoyaltyAccount> LoyaltyAccounts { get; set; }
+        public DbSet<LoyaltyTransaction> LoyaltyTransactions { get; set; }
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {

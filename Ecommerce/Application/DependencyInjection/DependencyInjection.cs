@@ -20,6 +20,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IPaymentService, PaymentService>();
             services.AddScoped<IReviewService, ReviewService>();
             services.AddScoped<IDashboardService, DashboardService>();
+            services.AddScoped<ILoyaltyService, LoyaltyService>();
 
             return services;
         }

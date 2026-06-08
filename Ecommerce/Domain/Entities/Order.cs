@@ -17,6 +17,7 @@ namespace Domain.Entities
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public virtual Payment? Payment { get; set; }
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
+        public virtual ICollection<LoyaltyTransaction> LoyaltyTransactions { get; set; } = new List<LoyaltyTransaction>();
 
         private Order() { }
 
@@ -65,6 +66,43 @@ namespace Domain.Entities
                 throw new InvalidOperationException("Cannot cancel an order that has already been confirmed and paid.");
 
             Status = OrderStatus.Cancelled;
+        }
+
+        public void MarkAsDelivered()
+        {
+            if (Status == OrderStatus.Delivered)
+            {
+                return;
+            }
+
+            if (Status == OrderStatus.Cancelled || Status == OrderStatus.Returned)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as delivered.");
+            }
+
+            Status = OrderStatus.Delivered;
+            AddDomainEvent(new Events.OrderDeliveredDomainEvent(this));
+        }
+
+        public void MarkAsCompleted()
+        {
+            if (Status == OrderStatus.Completed)
+            {
+                return;
+            }
+
+            if (Status == OrderStatus.Cancelled || Status == OrderStatus.Returned)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as completed.");
+            }
+
+            if (Status != OrderStatus.Delivered)
+            {
+                throw new InvalidOperationException($"Cannot mark an order in '{Status}' status as completed.");
+            }
+
+            Status = OrderStatus.Completed;
+            AddDomainEvent(new Events.OrderCompletedDomainEvent(this));
         }
     }
 }
