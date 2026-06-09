@@ -15,6 +15,7 @@ namespace Domain.Entities
         public Product Product { get; set; } = null!;
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
         public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
+        public virtual ICollection<WishlistItem> WishlistItems { get; set; } = new List<WishlistItem>();
 
         private ProductVariant() { }
 
