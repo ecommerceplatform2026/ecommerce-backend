@@ -4,6 +4,7 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Application.Mappings;
 using Domain.Entities;
+using Domain.Enums;
 using System;
 using System.Linq;
 using System.Threading;
@@ -81,6 +82,33 @@ namespace Application.Services
                 return Result<OrderResponse>.NotFound("Order not found.");
 
             return Result<OrderResponse>.Success(order.ToOrderResponse());
+        }
+
+        public async Task<Result<CancelOrderResponse>> CancelOrderAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var userIdStr = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+                return Result<CancelOrderResponse>.Unauthorized("User is not authenticated.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == id && o.UserId == userId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (order == null)
+                return Result<CancelOrderResponse>.NotFound("Order not found.");
+
+            order.MarkAsCancelled();
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<CancelOrderResponse>.Success(new CancelOrderResponse(
+                order.Id,
+                order.OrderCode,
+                order.Status.ToString(),
+                null,
+                null));
         }
     }
 }

@@ -97,7 +97,7 @@ namespace Infrastructure.Services
                         var order = payment.Order;
                         if (order != null)
                         {
-                            order.Cancel();
+                            order.MarkAsCancelled();
                             unitOfWork.GetRepository<Order>().Update(order);
 
                             foreach (var orderItem in order.OrderItems)

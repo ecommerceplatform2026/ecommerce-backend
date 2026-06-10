@@ -68,5 +68,16 @@ namespace Domain.Entities
 
             AvailablePoints += points;
         }
+
+        public void ReverseEarnedPoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+
+            if (AvailablePoints < points)
+                throw new InvalidOperationException("Insufficient available points to reverse.");
+
+            AvailablePoints -= points;
+        }
     }
 }
