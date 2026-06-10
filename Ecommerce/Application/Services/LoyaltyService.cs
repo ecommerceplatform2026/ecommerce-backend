@@ -3,6 +3,7 @@ using Application.DTOs.Loyalty;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
+using Application.Mappings;
 using Domain.Entities;
 using Domain.Enums;
 using System;
@@ -296,6 +297,109 @@ namespace Application.Services
         private static int CalculateRedeemValue(int points, int redeemRate = VndPerPoint / 100)
         {
             return points * redeemRate;
+        }
+
+        public async Task<Result<GetLoyaltyBalanceResponse>> GetLoyaltyBalanceAsync(CancellationToken cancellationToken = default)
+        {
+            var userId = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrWhiteSpace(userId) || !Guid.TryParse(userId, out var userIdGuid))
+            {
+                return Result<GetLoyaltyBalanceResponse>.Unauthorized("User is not authenticated.");
+            }
+
+            var account = await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .FindAsync(
+                    a => a.UserId == userIdGuid && !a.IsDeleted,
+                    asNoTracking: true,
+                    cancellationToken);
+
+            if (account == null)
+            {
+                // Return zero balance for user with no loyalty account
+                return Result<GetLoyaltyBalanceResponse>.Success(
+                    new GetLoyaltyBalanceResponse(
+                        Balance: 0,
+                        DiscountEquivalent: 0,
+                        LastUpdated: DateTime.UtcNow));
+            }
+
+            var totalBalance = account.AvailablePoints + account.PendingPoints;
+            
+            // Handle negative balance edge case
+            if (totalBalance < 0)
+            {
+                totalBalance = 0;
+            }
+
+            var vndEquivalent = totalBalance * VndPerPoint / 100;
+
+            return Result<GetLoyaltyBalanceResponse>.Success(
+                new GetLoyaltyBalanceResponse(
+                    Balance: totalBalance,
+                    DiscountEquivalent: vndEquivalent,
+                    LastUpdated: DateTime.UtcNow));
+        }
+
+        public async Task<Result<PagedResult<GetLoyaltyTransactionResponse>>> GetTransactionHistoryAsync(GetLoyaltyTransactionsRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request == null)
+            {
+                return Result<PagedResult<GetLoyaltyTransactionResponse>>.Failure("Request cannot be null.");
+            }
+
+            var userId = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrWhiteSpace(userId) || !Guid.TryParse(userId, out var userIdGuid))
+            {
+                return Result<PagedResult<GetLoyaltyTransactionResponse>>.Unauthorized("User is not authenticated.");
+            }
+
+            var account = await _unitOfWork.GetRepository<LoyaltyAccount>()
+                .FindAsync(
+                    a => a.UserId == userIdGuid && !a.IsDeleted,
+                    asNoTracking: true,
+                    cancellationToken);
+
+            if (account == null)
+            {
+                // Return empty response for user with no loyalty account
+                return Result<PagedResult<GetLoyaltyTransactionResponse>>.Success(
+                    new PagedResult<GetLoyaltyTransactionResponse>
+                    {
+                        Items = new List<GetLoyaltyTransactionResponse>(),
+                        TotalCount = 0,
+                        Page = request.Page,
+                        PageSize = request.PageSize
+                    });
+            }
+
+            System.Linq.Expressions.Expression<Func<LoyaltyTransaction, bool>> filter = t => t.LoyaltyAccountId == account.Id && !t.IsDeleted;
+            if (request.Status.HasValue)
+            {
+                filter = t => t.Status == request.Status.Value;
+            }
+            if (request.Type.HasValue)
+            {
+                filter = t => t.Type == request.Type.Value;
+            }
+
+            var (transactions, totalCount) = await _unitOfWork.GetRepository<LoyaltyTransaction>()
+                .GetPagedAsync(
+                    page: request.Page,
+                    pageSize: request.PageSize,
+                    filter: filter,
+                    orderBy: t => t.CreatedAt,
+                    isDescending: true,
+                    cancellationToken: cancellationToken);
+
+            var result = new PagedResult<GetLoyaltyTransactionResponse>
+            {
+                Items = transactions.Select(t => t.ToLoyaltyTransactionResponse()).ToList(),
+                TotalCount = totalCount,
+                Page = request.Page,
+                PageSize = request.PageSize
+            };
+
+            return Result<PagedResult<GetLoyaltyTransactionResponse>>.Success(result);
         }
 
         private static int CalculateEarnedPoints(Order order)

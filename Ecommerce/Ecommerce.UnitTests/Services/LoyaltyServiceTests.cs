@@ -296,9 +296,9 @@ namespace Ecommerce.UnitTests.Services
 
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().NotBeNull();
-            result.Value.RedeemedPoints.Should().Be(300);
-            result.Value.DiscountAmount.Should().Be(30_000);
-            result.Value.RemainingBalance.Should().Be(200);
+            result.Value?.RedeemedPoints.Should().Be(300);
+            result.Value?.DiscountAmount.Should().Be(30_000);
+            result.Value?.RemainingBalance.Should().Be(200);
             account.AvailablePoints.Should().Be(200);
             order.DiscountAmount.Should().Be(30_000);
             addedTransaction.Should().NotBeNull();
@@ -363,9 +363,9 @@ namespace Ecommerce.UnitTests.Services
                 new RedeemPointsRequest(order.Id, 800), CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.RedeemedPoints.Should().Be(400);
-            result.Value.DiscountAmount.Should().Be(40_000);
-            result.Value.RemainingBalance.Should().Be(600);
+            result.Value?.RedeemedPoints.Should().Be(400);
+            result.Value?.DiscountAmount.Should().Be(40_000);
+            result.Value?.RemainingBalance.Should().Be(600);
             account.AvailablePoints.Should().Be(600);
             order.DiscountAmount.Should().Be(40_000);
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
