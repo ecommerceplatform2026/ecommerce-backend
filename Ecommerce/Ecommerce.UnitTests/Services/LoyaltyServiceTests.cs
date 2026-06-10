@@ -304,9 +304,9 @@ namespace Ecommerce.UnitTests.Services
 
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().NotBeNull();
-            result.Value.RedeemedPoints.Should().Be(300);
-            result.Value.DiscountAmount.Should().Be(30_000);
-            result.Value.RemainingBalance.Should().Be(200);
+            result.Value?.RedeemedPoints.Should().Be(300);
+            result.Value?.DiscountAmount.Should().Be(30_000);
+            result.Value?.RemainingBalance.Should().Be(200);
             account.AvailablePoints.Should().Be(200);
             order.DiscountAmount.Should().Be(30_000);
             addedTransaction.Should().NotBeNull();
