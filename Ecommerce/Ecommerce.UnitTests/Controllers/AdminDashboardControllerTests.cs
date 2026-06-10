@@ -75,5 +75,63 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.TotalOrders.Should().Be(10);
         }
+
+        [Fact]
+        public async Task GetRevenueTrend_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var request = new DashboardRequest(
+                StartDate: DateTime.UtcNow.AddDays(-7),
+                EndDate: DateTime.UtcNow
+            );
+
+            var trendResponse = new List<RevenueTrendResponse>
+            {
+                new RevenueTrendResponse(DateTime.UtcNow.ToString("yyyy-MM-dd"), 1500000, 10)
+            };
+            var serviceResult = Result<List<RevenueTrendResponse>>.Success(trendResponse);
+
+            _dashboardServiceMock
+                .Setup(s => s.GetRevenueTrendAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.GetRevenueTrend(request, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<RevenueTrendResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task GetPaymentMethodSummary_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var request = new DashboardRequest(
+                StartDate: DateTime.UtcNow.AddDays(-7),
+                EndDate: DateTime.UtcNow
+            );
+
+            var summaryResponse = new List<PaymentMethodSummaryResponse>
+            {
+                new PaymentMethodSummaryResponse("COD", 5, 500000)
+            };
+            var serviceResult = Result<List<PaymentMethodSummaryResponse>>.Success(summaryResponse);
+
+            _dashboardServiceMock
+                .Setup(s => s.GetPaymentMethodSummaryAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.GetPaymentMethodSummary(request, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<PaymentMethodSummaryResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().HaveCount(1);
+        }
     }
 }
