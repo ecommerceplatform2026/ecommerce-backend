@@ -20,15 +20,21 @@ namespace Application.Services
         private readonly IUnitOfWork _unitOfWork;
         private readonly ICurrentUserService _currentUserService;
         private readonly IVnPayService _vnPayService;
+        private readonly IMomoService _momoService;
+        private readonly IZaloPayService _zaloPayService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
-            IVnPayService vnPayService)
+            IVnPayService vnPayService,
+            IMomoService momoService,
+            IZaloPayService zaloPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
+            _momoService = momoService ?? throw new ArgumentNullException(nameof(momoService));
+            _zaloPayService = zaloPayService ?? throw new ArgumentNullException(nameof(zaloPayService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -195,7 +201,17 @@ namespace Application.Services
                                 paymentLinkId = Guid.NewGuid().ToString();
                                 checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
                             }
-                            else if (request.PaymentMethod == PaymentMethod.MoMo || request.PaymentMethod == PaymentMethod.ZaloPay || request.PaymentMethod == PaymentMethod.PayOS)
+                            else if (request.PaymentMethod == PaymentMethod.MoMo)
+                            {
+                                paymentLinkId = Guid.NewGuid().ToString();
+                                checkoutUrl = await _momoService.CreatePaymentUrlAsync(orderCode, totalAmount, cancellationToken);
+                            }
+                            else if (request.PaymentMethod == PaymentMethod.ZaloPay)
+                            {
+                                paymentLinkId = Guid.NewGuid().ToString();
+                                checkoutUrl = await _zaloPayService.CreatePaymentUrlAsync(orderCode, totalAmount, cancellationToken);
+                            }
+                            else if (request.PaymentMethod == PaymentMethod.PayOS)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
                                 checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";

@@ -24,5 +24,20 @@ namespace Presentation.Controllers
             var result = await _reviewService.CreateReviewAsync(request, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpGet("/api/products/{productId:guid}/reviews")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetProductReviews(Guid productId, [FromQuery] GetProductReviewsRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _reviewService.GetProductReviewsAsync(productId, request, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpGet("eligibility")]
+        public async Task<IActionResult> CheckReviewEligibility([FromQuery] Guid productId, CancellationToken cancellationToken)
+        {
+            var result = await _reviewService.GetReviewEligibilityAsync(productId, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }

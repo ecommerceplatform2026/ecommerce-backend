@@ -104,5 +104,13 @@ namespace Presentation.Controllers
             var result = await _productService.DeleteProductImageAsync(id, imageId, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpGet("{productId:guid}/images")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetProductImages(Guid productId, CancellationToken cancellationToken)
+        {
+            var result = await _productService.GetProductImagesAsync(productId, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }

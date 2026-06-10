@@ -9,5 +9,6 @@ namespace Application.Interfaces.Services
         Task<Result<UserResponse>> GetUserAsync(CancellationToken cancellationToken = default);
         Task<Result<UserResponse>> UpdateUserAsync(UpdateUserRequest request, CancellationToken cancellationToken = default);
         Task<Result<User>> GetCurrentUserWithAddressesAsync(CancellationToken cancellationToken = default);
+        Task<Result<UserResponse>> UploadAvatarAsync(Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default);
     }
 }

@@ -32,5 +32,18 @@ namespace Presentation.Controllers
             return this.FromResult(result);
         }
 
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.RefreshTokenAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] LogoutRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _authService.LogoutAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
     }
 }

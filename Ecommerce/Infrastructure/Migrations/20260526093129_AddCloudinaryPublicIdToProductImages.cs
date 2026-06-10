@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,20 +10,21 @@ namespace Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "CloudinaryPublicId",
-                table: "ProductImages",
-                type: "character varying(255)",
-                maxLength: 255,
+            migrationBuilder.AddColumn<string>( 
+                name: "CloudinaryPublicId", 
+                table: "ProductImages", 
+                type: "character varying(255)", 
+                maxLength: 255, 
                 nullable: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "CloudinaryPublicId",
+            migrationBuilder.DropColumn( 
+                name: "CloudinaryPublicId", 
                 table: "ProductImages");
         }
     }
 }
+
