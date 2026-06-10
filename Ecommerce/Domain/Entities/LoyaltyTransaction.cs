@@ -82,6 +82,28 @@ namespace Domain.Entities
             Status = LoyaltyTransactionStatus.Completed;
         }
 
+        public static LoyaltyTransaction CreateExpired(Guid loyaltyAccountId, int points)
+        {
+            return new LoyaltyTransaction(
+                loyaltyAccountId,
+                null,
+                points,
+                LoyaltyTransactionType.Expired,
+                LoyaltyTransactionStatus.Completed,
+                "Points expired due to inactivity.");
+        }
+
+        public static LoyaltyTransaction CreatePendingExpired(Guid loyaltyAccountId, int points)
+        {
+            return new LoyaltyTransaction(
+                loyaltyAccountId,
+                null,
+                points,
+                LoyaltyTransactionType.Expired,
+                LoyaltyTransactionStatus.Pending,
+                "Points pending expiry due to inactivity.");
+        }
+
         public void Cancel()
         {
             if (Status == LoyaltyTransactionStatus.Cancelled)

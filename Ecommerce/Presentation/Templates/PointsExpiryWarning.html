@@ -1,0 +1,37 @@
+<html>
+<head>
+    <meta charset="utf-8" />
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .header { background-color: #f97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background-color: #fff; padding: 30px; border: 1px solid #e5e7eb; }
+        .points { font-size: 24px; font-weight: bold; color: #f97316; }
+        .expiry-date { font-weight: bold; color: #dc2626; }
+        .cta { display: inline-block; background-color: #f97316; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+        .footer { margin-top: 20px; font-size: 12px; color: #9ca3af; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Your loyalty points will expire soon</h1>
+        </div>
+        <div class="content">
+            <p>Dear {RecipientName},</p>
+            <p>This is a friendly reminder that your loyalty points are about to expire due to account inactivity.</p>
+            <p>You have <span class="points">{Points} points</span> that will expire on <span class="expiry-date">{ExpiryDate}</span>.</p>
+            <p>To keep your points, simply place an order before the expiry date. Points are earned when your order is delivered.</p>
+            <p style="text-align: center;">
+                <a href="{ShopUrl}" class="cta">Shop Now</a>
+            </p>
+            <p>Don't lose your hard-earned rewards!</p>
+            <br/>
+            <p>Best regards,<br/>The Ecommerce Team</p>
+        </div>
+        <div class="footer">
+            <p>This is an automated message. Please do not reply directly.</p>
+        </div>
+    </div>
+</body>
+</html>

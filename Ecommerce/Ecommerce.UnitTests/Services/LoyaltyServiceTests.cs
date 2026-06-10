@@ -9,6 +9,7 @@ using Domain.Enums;
 using FluentAssertions;
 using Moq;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -25,6 +26,8 @@ namespace Ecommerce.UnitTests.Services
         private readonly Mock<IGenericRepository<Order>> _orderRepositoryMock;
         private readonly Mock<IGenericRepository<LoyaltyAccount>> _accountRepositoryMock;
         private readonly Mock<IGenericRepository<LoyaltyTransaction>> _transactionRepositoryMock;
+        private readonly Mock<IGenericRepository<User>> _userRepositoryMock;
+        private readonly Mock<INotificationService> _notificationServiceMock;
         private readonly LoyaltyService _service;
 
         public LoyaltyServiceTests()
@@ -35,6 +38,8 @@ namespace Ecommerce.UnitTests.Services
             _orderRepositoryMock = new Mock<IGenericRepository<Order>>();
             _accountRepositoryMock = new Mock<IGenericRepository<LoyaltyAccount>>();
             _transactionRepositoryMock = new Mock<IGenericRepository<LoyaltyTransaction>>();
+            _userRepositoryMock = new Mock<IGenericRepository<User>>();
+            _notificationServiceMock = new Mock<INotificationService>();
 
             _unitOfWorkMock
                 .Setup(u => u.GetRepository<Order>())
@@ -45,8 +50,11 @@ namespace Ecommerce.UnitTests.Services
             _unitOfWorkMock
                 .Setup(u => u.GetRepository<LoyaltyTransaction>())
                 .Returns(_transactionRepositoryMock.Object);
+            _unitOfWorkMock
+                .Setup(u => u.GetRepository<User>())
+                .Returns(_userRepositoryMock.Object);
 
-            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object, _currentUserServiceMock.Object);
+            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object, _currentUserServiceMock.Object, _notificationServiceMock.Object);
         }
 
         [Fact]

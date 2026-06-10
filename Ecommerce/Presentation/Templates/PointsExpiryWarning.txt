@@ -1,0 +1,17 @@
+Your loyalty points will expire soon
+
+Dear {RecipientName},
+
+This is a friendly reminder that your loyalty points are about to expire due to account inactivity.
+
+You have {Points} points that will expire on {ExpiryDate}.
+
+To keep your points, simply place an order before the expiry date. Points are earned when your order is delivered.
+
+Don't lose your hard-earned rewards!
+
+Best regards,
+The Ecommerce Team
+
+---
+This is an automated message. Please do not reply directly.
