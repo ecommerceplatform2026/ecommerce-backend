@@ -28,6 +28,7 @@ namespace Infrastructure.Data
         public DbSet<LoyaltyAccount> LoyaltyAccounts { get; set; }
         public DbSet<LoyaltyTransaction> LoyaltyTransactions { get; set; }
         public DbSet<Delivery> Deliveries { get; set; }
+        public DbSet<WishlistItem> WishlistItems { get; set; }
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
