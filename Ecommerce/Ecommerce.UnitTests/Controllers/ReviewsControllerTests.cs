@@ -65,5 +65,56 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.Comment.Should().Be("Excellent quality!");
         }
+
+        [Fact]
+        public async Task GetProductReviews_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var productId = Guid.NewGuid();
+            var request = new GetProductReviewsRequest();
+            var pagedResult = new PagedResult<ReviewResponse>
+            {
+                Items = new System.Collections.Generic.List<ReviewResponse>(),
+                Page = 1,
+                PageSize = 10,
+                TotalCount = 0
+            };
+            var serviceResult = Result<PagedResult<ReviewResponse>>.Success(pagedResult);
+
+            _reviewServiceMock
+                .Setup(s => s.GetProductReviewsAsync(productId, request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.GetProductReviews(productId, request, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PagedResult<ReviewResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task CheckReviewEligibility_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var productId = Guid.NewGuid();
+            var eligibilityResponse = new ReviewEligibilityResponse(true, new System.Collections.Generic.List<EligibleOrderDto>());
+            var serviceResult = Result<ReviewEligibilityResponse>.Success(eligibilityResponse);
+
+            _reviewServiceMock
+                .Setup(s => s.GetReviewEligibilityAsync(productId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.CheckReviewEligibility(productId, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<ReviewEligibilityResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.IsEligible.Should().BeTrue();
+        }
     }
 }

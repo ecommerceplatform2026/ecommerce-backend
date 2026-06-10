@@ -31,5 +31,22 @@ namespace Presentation.Controllers
             var result = await _userService.UpdateUserAsync(request, cancellationToken);
             return this.FromResult(result);
         }
+
+        [HttpPost("avatar")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadAvatar(Microsoft.AspNetCore.Http.IFormFile? image, CancellationToken cancellationToken)
+        {
+            if (image == null)
+                return BadRequest("No file was uploaded.");
+
+            await using var stream = image.OpenReadStream();
+            var result = await _userService.UploadAvatarAsync(
+                stream,
+                image.FileName,
+                image.ContentType,
+                cancellationToken);
+
+            return this.FromResult(result);
+        }
     }
 }

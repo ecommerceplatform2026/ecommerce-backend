@@ -23,6 +23,7 @@ namespace Application.DependencyInjection
             services.AddScoped<ILoyaltyService, LoyaltyService>();
             services.AddScoped<IShippingService, ShippingService>();
             services.AddScoped<IShippingWebhookHandler, GhnWebhookService>();
+            services.AddScoped<IWishlistService, WishlistService>();
 
             return services;
         }
