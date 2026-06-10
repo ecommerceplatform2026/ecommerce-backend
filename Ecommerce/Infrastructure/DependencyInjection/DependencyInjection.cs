@@ -75,6 +75,8 @@ namespace Infrastructure.DependencyInjection
             });
 
             services.AddScoped<IVnPayService, VnPayService>();
+            services.AddHttpClient<IMomoService, MomoService>();
+            services.AddHttpClient<IZaloPayService, ZaloPayService>();
             services.AddHostedService<PaymentTimeoutBackgroundService>();
             services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
 

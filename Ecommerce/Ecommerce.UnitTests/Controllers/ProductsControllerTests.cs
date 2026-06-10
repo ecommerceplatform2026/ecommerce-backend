@@ -202,5 +202,30 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.ImageUrl.Should().Be("http://cloudinary.com/image.png");
         }
+
+        [Fact]
+        public async Task GetProductImages_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var productId = Guid.NewGuid();
+            var imagesList = new List<ProductImageResponse>
+            {
+                new ProductImageResponse { Id = Guid.NewGuid(), ImageUrl = "http://cloudinary.com/image.png" }
+            };
+            var serviceResult = Result<List<ProductImageResponse>>.Success(imagesList);
+
+            _productServiceMock
+                .Setup(s => s.GetProductImagesAsync(productId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.GetProductImages(productId, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<List<ProductImageResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().HaveCount(1);
+        }
     }
 }

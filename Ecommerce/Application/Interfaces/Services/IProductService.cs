@@ -14,5 +14,6 @@ namespace Application.Interfaces.Services
         Task<Result<bool>> DeleteProductAsync(Guid id, CancellationToken cancellationToken = default);
         Task<Result<ProductImageResponse>> UploadProductImageAsync(Guid productId, Stream imageStream, string fileName, string contentType, long fileSize, CancellationToken cancellationToken = default);
         Task<Result<bool>> DeleteProductImageAsync(Guid productId, Guid imageId, CancellationToken cancellationToken = default);
+        Task<Result<List<ProductImageResponse>>> GetProductImagesAsync(Guid productId, CancellationToken cancellationToken = default);
     }
 }

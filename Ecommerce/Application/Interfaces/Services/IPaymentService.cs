@@ -6,5 +6,8 @@ namespace Application.Interfaces.Services
     public interface IPaymentService
     {
         Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default);
+        Task<Result<PaymentResponse>> ProcessMomoCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default);
+        Task<Result<PaymentResponse>> ProcessZaloPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default);
+        Task<Result<PaymentResponse>> GetPaymentStatusAsync(int orderCode, CancellationToken cancellationToken = default);
     }
 }

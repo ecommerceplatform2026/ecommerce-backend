@@ -17,13 +17,19 @@ namespace Application.Services
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IVnPayService _vnPayService;
+        private readonly IMomoService _momoService;
+        private readonly IZaloPayService _zaloPayService;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
-            IVnPayService vnPayService)
+            IVnPayService vnPayService,
+            IMomoService momoService,
+            IZaloPayService zaloPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
+            _momoService = momoService ?? throw new ArgumentNullException(nameof(momoService));
+            _zaloPayService = zaloPayService ?? throw new ArgumentNullException(nameof(zaloPayService));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
@@ -39,15 +45,7 @@ namespace Application.Services
                 return Result<PaymentResponse>.Failure("Invalid callback data or signature.");
             }
 
-            var paymentRecord = await _unitOfWork.GetRepository<Payment>()
-                .FindAsyncWithStringIncludes(
-                    p => p.OrderCode == orderCode,
-                    asNoTracking: false,
-                    cancellationToken,
-                    "Order",
-                    "Order.OrderItems",
-                    "Order.OrderItems.ProductVariant");
-
+            var paymentRecord = await GetPaymentRecordAsync(orderCode, cancellationToken);
             if (paymentRecord == null)
             {
                 return Result<PaymentResponse>.NotFound($"Payment for order code {orderCode} not found.");
@@ -55,20 +53,116 @@ namespace Application.Services
 
             if (paymentRecord.Status != PaymentStatus.Pending)
             {
-                var response = new PaymentResponse(
-                    paymentRecord.Id,
-                    paymentRecord.OrderId,
-                    paymentRecord.OrderCode,
-                    paymentRecord.Amount.Amount,
-                    paymentRecord.Status,
-                    paymentRecord.PaymentLinkId,
-                    paymentRecord.CheckoutUrl);
-
-                return paymentRecord.Status == PaymentStatus.Success
-                    ? Result<PaymentResponse>.Success(response)
-                    : Result<PaymentResponse>.Failure("Payment was already processed as failed.");
+                return GetProcessedResponse(paymentRecord);
             }
 
+            return await CompleteCallbackAsync(paymentRecord, isSuccess, cancellationToken);
+        }
+
+        public async Task<Result<PaymentResponse>> ProcessMomoCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
+        {
+            if (queryParameters == null || !queryParameters.Any())
+            {
+                return Result<PaymentResponse>.Failure("Invalid query parameters.");
+            }
+
+            var isValidCallback = _momoService.ValidateCallback(queryParameters, out var orderCode, out var isSuccess);
+            if (!isValidCallback)
+            {
+                return Result<PaymentResponse>.Failure("Invalid callback data or signature.");
+            }
+
+            var paymentRecord = await GetPaymentRecordAsync(orderCode, cancellationToken);
+            if (paymentRecord == null)
+            {
+                return Result<PaymentResponse>.NotFound($"Payment for order code {orderCode} not found.");
+            }
+
+            if (paymentRecord.Status != PaymentStatus.Pending)
+            {
+                return GetProcessedResponse(paymentRecord);
+            }
+
+            return await CompleteCallbackAsync(paymentRecord, isSuccess, cancellationToken);
+        }
+
+        public async Task<Result<PaymentResponse>> ProcessZaloPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
+        {
+            if (queryParameters == null || !queryParameters.Any())
+            {
+                return Result<PaymentResponse>.Failure("Invalid query parameters.");
+            }
+
+            var isValidCallback = _zaloPayService.ValidateCallback(queryParameters, out var orderCode, out var isSuccess);
+            if (!isValidCallback)
+            {
+                return Result<PaymentResponse>.Failure("Invalid callback data or signature.");
+            }
+
+            var paymentRecord = await GetPaymentRecordAsync(orderCode, cancellationToken);
+            if (paymentRecord == null)
+            {
+                return Result<PaymentResponse>.NotFound($"Payment for order code {orderCode} not found.");
+            }
+
+            if (paymentRecord.Status != PaymentStatus.Pending)
+            {
+                return GetProcessedResponse(paymentRecord);
+            }
+
+            return await CompleteCallbackAsync(paymentRecord, isSuccess, cancellationToken);
+        }
+
+        public async Task<Result<PaymentResponse>> GetPaymentStatusAsync(int orderCode, CancellationToken cancellationToken = default)
+        {
+            var paymentRecord = await GetPaymentRecordAsync(orderCode, cancellationToken);
+            if (paymentRecord == null)
+            {
+                return Result<PaymentResponse>.NotFound($"Payment for order code {orderCode} not found.");
+            }
+
+            var response = new PaymentResponse(
+                paymentRecord.Id,
+                paymentRecord.OrderId,
+                paymentRecord.OrderCode,
+                paymentRecord.Amount.Amount,
+                paymentRecord.Status,
+                paymentRecord.PaymentLinkId,
+                paymentRecord.CheckoutUrl);
+
+            return Result<PaymentResponse>.Success(response);
+        }
+
+        private async Task<Payment?> GetPaymentRecordAsync(int orderCode, CancellationToken cancellationToken)
+        {
+            return await _unitOfWork.GetRepository<Payment>()
+                .FindAsyncWithStringIncludes(
+                    p => p.OrderCode == orderCode,
+                    asNoTracking: false,
+                    cancellationToken,
+                    "Order",
+                    "Order.OrderItems",
+                    "Order.OrderItems.ProductVariant");
+        }
+
+        private Result<PaymentResponse> GetProcessedResponse(Payment paymentRecord)
+        {
+            var response = new PaymentResponse(
+                paymentRecord.Id,
+                paymentRecord.OrderId,
+                paymentRecord.OrderCode,
+                paymentRecord.Amount.Amount,
+                paymentRecord.Status,
+                paymentRecord.PaymentLinkId,
+                paymentRecord.CheckoutUrl);
+
+            return paymentRecord.Status == PaymentStatus.Success
+                ? Result<PaymentResponse>.Success(response)
+                : Result<PaymentResponse>.Failure("Payment was already processed as failed.");
+        }
+
+        private async Task<Result<PaymentResponse>> CompleteCallbackAsync(Payment paymentRecord, bool isSuccess, CancellationToken cancellationToken)
+        {
             if (isSuccess)
             {
                 paymentRecord.Complete(DateTime.UtcNow);
