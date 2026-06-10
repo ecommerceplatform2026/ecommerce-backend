@@ -1,6 +1,7 @@
 using Application.Common.Exceptions;
 using Application.Common.Response;
 using Application.DTOs.Checkout;
+using Application.DTOs.Loyalty;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
@@ -22,19 +23,22 @@ namespace Application.Services
         private readonly IVnPayService _vnPayService;
         private readonly IMomoService _momoService;
         private readonly IZaloPayService _zaloPayService;
+        private readonly ILoyaltyService _loyaltyService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IVnPayService vnPayService,
             IMomoService momoService,
-            IZaloPayService zaloPayService)
+            IZaloPayService zaloPayService,
+            ILoyaltyService loyaltyService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
             _momoService = momoService ?? throw new ArgumentNullException(nameof(momoService));
             _zaloPayService = zaloPayService ?? throw new ArgumentNullException(nameof(zaloPayService));
+            _loyaltyService = loyaltyService ?? throw new ArgumentNullException(nameof(loyaltyService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -83,6 +87,8 @@ namespace Application.Services
                         existingPayment.OrderId,
                         existingPayment.OrderCode,
                         existingPayment.Order.TotalAmount.Amount,
+                        existingPayment.Order.DiscountAmount,
+                        existingPayment.Order.TotalAmount.Amount - existingPayment.Order.DiscountAmount,
                         existingPayment.Order.Status,
                         existingPayment.Order.PaymentMethod,
                         itemResponses,
@@ -193,13 +199,26 @@ namespace Application.Services
 
                             await _unitOfWork.GetRepository<Order>().AddAsync(order, cancellationToken);
 
+                            if (request.RedeemedPoints.HasValue && request.RedeemedPoints.Value > 0)
+                            {
+                                var redeemRequest = new RedeemPointsRequest(order.Id, request.RedeemedPoints.Value);
+                                var redeemResult = await _loyaltyService.RedeemPointsAtCheckoutAsync(redeemRequest, cancellationToken);
+
+                                if (!redeemResult.IsSuccess)
+                                {
+                                    throw new InvalidOperationException(string.Join("; ", redeemResult.Errors));
+                                }
+                            }
+
+                            long payableAmount = order.TotalAmount.Amount - order.DiscountAmount;
+
                             string? checkoutUrl = null;
                             string paymentLinkId = "";
 
                             if (request.PaymentMethod == PaymentMethod.VNPay)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
-                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, totalAmount);
+                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, payableAmount);
                             }
                             else if (request.PaymentMethod == PaymentMethod.MoMo)
                             {
@@ -217,7 +236,7 @@ namespace Application.Services
                                 checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
                             }
 
-                            var payment = Payment.Create(order.Id, orderCode, order.TotalAmount, paymentLinkId, checkoutUrl);
+                            var payment = Payment.Create(order.Id, orderCode, new Money(payableAmount, "VND"), paymentLinkId, checkoutUrl);
 
                             await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
 
@@ -235,6 +254,8 @@ namespace Application.Services
                                 order.Id,
                                 order.OrderCode,
                                 order.TotalAmount.Amount,
+                                order.DiscountAmount,
+                                order.TotalAmount.Amount - order.DiscountAmount,
                                 order.Status,
                                 order.PaymentMethod,
                                 itemResponses,

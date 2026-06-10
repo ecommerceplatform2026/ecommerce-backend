@@ -40,6 +40,8 @@ namespace Ecommerce.UnitTests.Controllers
                 Guid.NewGuid(),
                 12345,
                 200000,
+                0,
+                200000,
                 OrderStatus.Pending,
                 PaymentMethod.COD,
                 items,

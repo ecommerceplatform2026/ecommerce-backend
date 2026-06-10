@@ -53,6 +53,20 @@ namespace Domain.Entities
                 "Points earned from delivered order.");
         }
 
+        public static LoyaltyTransaction CreatePendingRedeem(Guid loyaltyAccountId, Guid orderId, int points)
+        {
+            if (orderId == Guid.Empty)
+                throw new ArgumentException("Order ID cannot be empty.", nameof(orderId));
+
+            return new LoyaltyTransaction(
+                loyaltyAccountId,
+                orderId,
+                points,
+                LoyaltyTransactionType.Redeem,
+                LoyaltyTransactionStatus.Pending,
+                "Points redeemed from order.");
+        }
+
         public void Complete()
         {
             if (Status == LoyaltyTransactionStatus.Completed)

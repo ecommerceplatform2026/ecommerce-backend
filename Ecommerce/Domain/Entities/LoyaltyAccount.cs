@@ -49,5 +49,24 @@ namespace Domain.Entities
             PendingPoints -= points;
             AvailablePoints += points;
         }
+
+        public void DeductAvailablePoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+
+            if (AvailablePoints < points)
+                throw new InvalidOperationException("Insufficient available points.");
+
+            AvailablePoints -= points;
+        }
+
+        public void AddAvailablePoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+
+            AvailablePoints += points;
+        }
     }
 }

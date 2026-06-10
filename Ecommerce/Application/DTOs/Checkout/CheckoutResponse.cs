@@ -6,6 +6,8 @@ namespace Application.DTOs.Checkout
         Guid OrderId,
         int OrderCode,
         long TotalAmount,
+        long DiscountAmount,
+        long PaidAmount,
         OrderStatus Status,
         PaymentMethod PaymentMethod,
         List<CheckoutItemResponse> Items,

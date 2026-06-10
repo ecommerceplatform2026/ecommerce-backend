@@ -9,6 +9,7 @@ namespace Domain.Entities
     {
         public Guid UserId { get; private set; }
         public Money TotalAmount { get; private set; } = null!;
+        public long DiscountAmount { get; private set; }
         public OrderStatus Status { get; private set; }
         public int OrderCode { get; private set; }
         public PaymentMethod PaymentMethod { get; private set; }
@@ -34,6 +35,7 @@ namespace Domain.Entities
             PaymentMethod = paymentMethod;
             Status = OrderStatus.Pending;
             TotalAmount = Money.Zero("VND");
+            DiscountAmount = 0;
         }
 
         public static Order Create(Guid userId, int orderCode, PaymentMethod paymentMethod)
@@ -51,6 +53,16 @@ namespace Domain.Entities
             var item = OrderItem.Create(Id, productVariantId, quantity, price, productSnapshot);
             OrderItems.Add(item);
             TotalAmount += price * quantity;
+        }
+
+        public void ApplyDiscount(long discountAmount)
+        {
+            if (discountAmount < 0)
+                throw new ArgumentException("Discount amount cannot be negative.", nameof(discountAmount));
+            if (discountAmount > TotalAmount.Amount)
+                throw new InvalidOperationException("Discount cannot exceed order total.");
+
+            DiscountAmount = discountAmount;
         }
 
         public void ConfirmPayment()
