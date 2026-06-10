@@ -31,7 +31,7 @@ namespace Ecommerce.UnitTests.Controllers
             // Arrange
             var balanceResponse = new GetLoyaltyBalanceResponse(
                 Balance: 120,
-                VndEquivalent: 1200000,
+                DiscountEquivalent: 1200000,
                 LastUpdated: DateTime.UtcNow);
 
             _loyaltyServiceMock
@@ -47,7 +47,7 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data.Should().NotBeNull();
             apiResponse.Data!.Balance.Should().Be(120);
-            apiResponse.Data.VndEquivalent.Should().Be(1200000);
+            apiResponse.Data.DiscountEquivalent.Should().Be(1200000);
         }
 
         [Fact]
