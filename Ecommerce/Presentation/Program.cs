@@ -77,6 +77,28 @@ builder.Services
     .AddOptions<ShippingSettings>()
     .Bind(builder.Configuration.GetSection("Shipping"));
 
+builder.Services
+    .AddOptions<MomoSettings>()
+    .Bind(builder.Configuration.GetSection("Momo"))
+    .Validate(settings =>
+        !string.IsNullOrWhiteSpace(settings.PartnerCode) &&
+        !string.IsNullOrWhiteSpace(settings.AccessKey) &&
+        !string.IsNullOrWhiteSpace(settings.SecretKey) &&
+        !string.IsNullOrWhiteSpace(settings.CreateUrl),
+        "MomoSettings must include PartnerCode, AccessKey, SecretKey, and CreateUrl.")
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<ZaloPaySettings>()
+    .Bind(builder.Configuration.GetSection("ZaloPay"))
+    .Validate(settings =>
+        settings.AppId > 0 &&
+        !string.IsNullOrWhiteSpace(settings.Key1) &&
+        !string.IsNullOrWhiteSpace(settings.Key2) &&
+        !string.IsNullOrWhiteSpace(settings.CreateUrl),
+        "ZaloPaySettings must include AppId, Key1, Key2, and CreateUrl.")
+    .ValidateOnStart();
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>()
     ?? throw new InvalidOperationException("JwtSettings configuration is missing.");
 

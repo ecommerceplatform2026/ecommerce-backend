@@ -297,5 +297,28 @@ namespace Application.Services
                 // The database failure is the caller-visible error; cleanup is best effort.
             }
         }
+
+        public async Task<Result<List<ProductImageResponse>>> GetProductImagesAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            var productExists = await _unitOfWork.GetRepository<Product>()
+                .TotalAsync(p => p.Id == productId && !p.IsDeleted) > 0;
+
+            if (!productExists)
+            {
+                return Result<List<ProductImageResponse>>.NotFound("Product not found.");
+            }
+
+            var images = await _unitOfWork.GetRepository<ProductImage>().GetAllAsync(
+                pi => pi.ProductId == productId,
+                cancellationToken);
+
+            var response = images.Select(pi => new ProductImageResponse
+            {
+                Id = pi.Id,
+                ImageUrl = pi.ImageUrl
+            }).ToList();
+
+            return Result<List<ProductImageResponse>>.Success(response);
+        }
     }
 }

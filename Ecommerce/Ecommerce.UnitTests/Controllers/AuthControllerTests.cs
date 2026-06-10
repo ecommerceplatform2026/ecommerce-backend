@@ -144,5 +144,47 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Data.Should().BeNull();
             apiResponse.Errors.Should().Contain("Invalid username or password");
         }
+
+        [Fact]
+        public async Task RefreshToken_WithValidRequest_ReturnsOk()
+        {
+            // Arrange
+            var request = new RefreshTokenRequest(AccessToken: "expired_token", RefreshToken: "valid_refresh_token");
+            var authResponse = new AuthResponse { Token = "new_jwt_token", RefreshToken = "new_refresh_token" };
+            var serviceResult = Result<AuthResponse>.Success(authResponse);
+
+            _authServiceMock
+                .Setup(s => s.RefreshTokenAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.RefreshToken(request, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<AuthResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.Token.Should().Be("new_jwt_token");
+        }
+
+        [Fact]
+        public async Task Logout_WithValidRequest_ReturnsOk()
+        {
+            // Arrange
+            var request = new LogoutRequest("valid_refresh_token");
+            var serviceResult = Result<object>.Success(new { Message = "Logged out successfully." });
+
+            _authServiceMock
+                .Setup(s => s.LogoutAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.Logout(request, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<object>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+        }
     }
 }

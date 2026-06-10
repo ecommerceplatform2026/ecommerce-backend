@@ -62,5 +62,67 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.Status.Should().Be(PaymentStatus.Success);
         }
+
+        [Fact]
+        public async Task MomoCallback_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var requestBody = new Dictionary<string, string> { { "resultCode", "0" } };
+            var paymentResponse = new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url");
+            var serviceResult = Result<PaymentResponse>.Success(paymentResponse);
+
+            _paymentServiceMock
+                .Setup(s => s.ProcessMomoCallbackAsync(requestBody, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.MomoCallback(requestBody, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task ZaloPayCallback_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var requestBody = new Dictionary<string, string> { { "status", "1" } };
+            var paymentResponse = new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url");
+            var serviceResult = Result<PaymentResponse>.Success(paymentResponse);
+
+            _paymentServiceMock
+                .Setup(s => s.ProcessZaloPayCallbackAsync(requestBody, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.ZaloPayCallback(requestBody, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task GetPaymentStatus_ReturnsOk_WhenSuccessful()
+        {
+            // Arrange
+            var paymentResponse = new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url");
+            var serviceResult = Result<PaymentResponse>.Success(paymentResponse);
+
+            _paymentServiceMock
+                .Setup(s => s.GetPaymentStatusAsync(12345, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            // Act
+            var result = await _controller.GetPaymentStatus(12345, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+        }
     }
 }

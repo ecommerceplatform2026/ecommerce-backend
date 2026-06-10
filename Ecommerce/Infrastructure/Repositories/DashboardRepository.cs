@@ -2,6 +2,7 @@ using Application.DTOs.Dashboard;
 using Application.Interfaces.Repositories;
 using Domain.Entities;
 using Domain.Enums;
+using Domain.Helpers;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -29,12 +30,12 @@ namespace Infrastructure.Repositories
 
             if (request.StartDate.HasValue)
             {
-                orderQuery = orderQuery.Where(o => o.CreatedAt >= request.StartDate.Value);
+                var startDate = TimeHelper.EnsureUtc(request.StartDate.Value);
+                orderQuery = orderQuery.Where(o => o.CreatedAt >= startDate);
             }
-
             if (request.EndDate.HasValue)
             {
-                var endDate = request.EndDate.Value;
+                var endDate = TimeHelper.EnsureUtc(request.EndDate.Value);
                 if (endDate.TimeOfDay == TimeSpan.Zero)
                 {
                     var exclusiveEndDate = endDate.Date.AddDays(1);
@@ -51,7 +52,10 @@ namespace Infrastructure.Repositories
 
             // 3. Calculate total revenue for valid orders in the date range (not Pending, not Cancelled)
             var validOrdersQuery = orderQuery.Where(o => o.Status != OrderStatus.Pending && o.Status != OrderStatus.Cancelled);
-            var totalRevenue = await validOrdersQuery.SumAsync(o => o.TotalAmount.Amount, cancellationToken);
+            var revenueAmounts = await validOrdersQuery
+                .Select(o => o.TotalAmount.Amount)
+                .ToListAsync(cancellationToken);
+            var totalRevenue = revenueAmounts.Sum();
 
             // 4. Order status summary in the date range
             var statusGroups = await orderQuery
@@ -115,6 +119,100 @@ namespace Infrastructure.Repositories
                 topSellingProducts,
                 lowStockVariants,
                 orderStatusSummary);
+        }
+
+        public async Task<List<RevenueTrendResponse>> GetRevenueTrendAsync(DashboardRequest request, CancellationToken cancellationToken = default)
+        {
+            var orderQuery = _context.Set<Order>()
+                .Where(o => !o.IsDeleted && o.Status != OrderStatus.Pending && o.Status != OrderStatus.Cancelled);
+
+            if (request.StartDate.HasValue)
+            {
+                var startDate = TimeHelper.EnsureUtc(request.StartDate.Value);
+                orderQuery = orderQuery.Where(o => o.CreatedAt >= startDate);
+            }
+            if (request.EndDate.HasValue)
+            {
+                var endDate = TimeHelper.EnsureUtc(request.EndDate.Value);
+                if (endDate.TimeOfDay == TimeSpan.Zero)
+                {
+                    var exclusiveEndDate = endDate.Date.AddDays(1);
+                    orderQuery = orderQuery.Where(o => o.CreatedAt < exclusiveEndDate);
+                }
+                else
+                {
+                    orderQuery = orderQuery.Where(o => o.CreatedAt <= endDate);
+                }
+            }
+
+            var orderProjections = await orderQuery
+                .Select(o => new
+                {
+                    o.CreatedAt,
+                    Revenue = o.TotalAmount.Amount
+                })
+                .ToListAsync(cancellationToken);
+
+            var trend = orderProjections
+                .GroupBy(o => o.CreatedAt.Date)
+                .Select(g => new RevenueTrendResponse(
+                    g.Key.ToString("yyyy-MM-dd"),
+                    g.Sum(x => x.Revenue),
+                    g.Count()
+                ))
+                .OrderBy(x => x.Date)
+                .ToList();
+
+            return trend;
+        }
+
+        public async Task<List<PaymentMethodSummaryResponse>> GetPaymentMethodSummaryAsync(DashboardRequest request, CancellationToken cancellationToken = default)
+        {
+            var orderQuery = _context.Set<Order>()
+                .Where(o => !o.IsDeleted && o.Status != OrderStatus.Pending && o.Status != OrderStatus.Cancelled);
+
+            if (request.StartDate.HasValue)
+            {
+                var startDate = TimeHelper.EnsureUtc(request.StartDate.Value);
+                orderQuery = orderQuery.Where(o => o.CreatedAt >= startDate);
+            }
+            if (request.EndDate.HasValue)
+            {
+                var endDate = TimeHelper.EnsureUtc(request.EndDate.Value);
+                if (endDate.TimeOfDay == TimeSpan.Zero)
+                {
+                    var exclusiveEndDate = endDate.Date.AddDays(1);
+                    orderQuery = orderQuery.Where(o => o.CreatedAt < exclusiveEndDate);
+                }
+                else
+                {
+                    orderQuery = orderQuery.Where(o => o.CreatedAt <= endDate);
+                }
+            }
+
+            var paymentProjections = await orderQuery
+                .Select(o => new
+                {
+                    o.PaymentMethod,
+                    Revenue = o.TotalAmount.Amount
+                })
+                .ToListAsync(cancellationToken);
+
+            var paymentMethodSummary = Enum.GetValues<PaymentMethod>()
+                .ToDictionary(m => m.ToString(), m => new PaymentMethodSummaryResponse(m.ToString(), 0, 0));
+
+            var grouped = paymentProjections.GroupBy(o => o.PaymentMethod);
+
+            foreach (var g in grouped)
+            {
+                var methodStr = g.Key.ToString();
+                paymentMethodSummary[methodStr] = new PaymentMethodSummaryResponse(
+                    methodStr,
+                    g.Count(),
+                    g.Sum(x => x.Revenue));
+            }
+
+            return paymentMethodSummary.Values.ToList();
         }
     }
 }
