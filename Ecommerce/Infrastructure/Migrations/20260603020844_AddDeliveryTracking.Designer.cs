@@ -3,6 +3,7 @@ using System;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Infrastructure.Migrations
 {
     [DbContext(typeof(EcommerceContext))]
-    partial class EcommerceContextModelSnapshot : ModelSnapshot
+    [Migration("20260603020844_AddDeliveryTracking")]
+    partial class AddDeliveryTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -848,49 +851,6 @@ namespace Infrastructure.Migrations
                     b.ToTable("UserAddresses");
                 });
 
-            modelBuilder.Entity("Domain.Entities.WishlistItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("ProductVariantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductVariantId");
-
-                    b.HasIndex("UserId", "ProductVariantId")
-                        .IsUnique();
-
-                    b.ToTable("WishlistItems");
-                });
-
             modelBuilder.Entity("Domain.Entities.CartItem", b =>
                 {
                     b.HasOne("Domain.Entities.ProductVariant", "ProductVariant")
@@ -1087,24 +1047,6 @@ namespace Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Domain.Entities.WishlistItem", b =>
-                {
-                    b.HasOne("Domain.Entities.ProductVariant", "ProductVariant")
-                        .WithMany("WishlistItems")
-                        .HasForeignKey("ProductVariantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Domain.Entities.User", "User")
-                        .WithMany("WishlistItems")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ProductVariant");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("Domain.Entities.Category", b =>
                 {
                     b.Navigation("Products");
@@ -1142,8 +1084,6 @@ namespace Infrastructure.Migrations
                     b.Navigation("CartItems");
 
                     b.Navigation("OrderItems");
-
-                    b.Navigation("WishlistItems");
                 });
 
             modelBuilder.Entity("Domain.Entities.User", b =>
@@ -1157,8 +1097,6 @@ namespace Infrastructure.Migrations
                     b.Navigation("Reviews");
 
                     b.Navigation("UserAddresses");
-
-                    b.Navigation("WishlistItems");
                 });
 #pragma warning restore 612, 618
         }

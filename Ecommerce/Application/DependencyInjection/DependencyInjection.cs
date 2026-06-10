@@ -21,6 +21,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IReviewService, ReviewService>();
             services.AddScoped<IDashboardService, DashboardService>();
             services.AddScoped<ILoyaltyService, LoyaltyService>();
+            services.AddScoped<IShippingService, ShippingService>();
             services.AddScoped<IWishlistService, WishlistService>();
 
             return services;

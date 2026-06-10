@@ -7,6 +7,7 @@ using Infrastructure.Data;
 using Infrastructure.Repositories;
 using Infrastructure.Repositories.Base;
 using Infrastructure.Services;
+using Infrastructure.Services.Ghn;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -99,6 +100,17 @@ namespace Infrastructure.DependencyInjection
                     services.AddScoped(@interface, handlerType);
                 }
             }
+
+            // GHN-specific services (internal to Infrastructure)
+            services.Configure<GhnOptions>(configuration.GetSection("GHN"));
+            services.AddHttpClient<GhnHttpClient>(client =>
+            {
+                // Configured via GhnOptions in constructor
+            }).AddStandardResilienceHandler();
+            services.AddScoped<GhnLocationValidator>();
+
+            // Register GHN provider as IShippingProvider — auto-discovered by ShippingService via IEnumerable
+            services.AddScoped<IShippingProvider, GhnShippingProvider>();
 
             return services;
         }

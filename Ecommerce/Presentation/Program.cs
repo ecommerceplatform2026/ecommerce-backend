@@ -74,6 +74,10 @@ builder.Services
     .Bind(builder.Configuration.GetSection("MailSettings"));
 
 builder.Services
+    .AddOptions<ShippingSettings>()
+    .Bind(builder.Configuration.GetSection("Shipping"));
+
+builder.Services
     .AddOptions<MomoSettings>()
     .Bind(builder.Configuration.GetSection("Momo"))
     .Validate(settings =>
