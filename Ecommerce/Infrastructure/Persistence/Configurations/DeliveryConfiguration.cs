@@ -8,6 +8,8 @@ namespace Infrastructure.Persistence.Configurations
     {
         public void Configure(EntityTypeBuilder<Delivery> builder)
         {
+            builder.ToTable("Delivery");
+
             builder.HasKey(d => d.Id);
             builder.Property(d => d.CarrierCode).IsRequired().HasMaxLength(20);
             builder.Property(d => d.TrackingCode).IsRequired().HasMaxLength(50);

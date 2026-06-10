@@ -140,6 +140,193 @@ namespace Ecommerce.UnitTests.EntityTests
             delivery.Note.Should().BeNull();
         }
 
+        [Fact]
+        public void MarkPickedUp_WhenCreated_SetsStatusPickedUp()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+
+            delivery.MarkPickedUp();
+
+            delivery.Status.Should().Be(DeliveryStatus.PickedUp);
+        }
+
+        [Fact]
+        public void MarkPickedUp_FromAnyStatus_SetsStatusPickedUp()
+        {
+            var delivery = CreatePendingDelivery();
+
+            delivery.MarkPickedUp();
+
+            delivery.Status.Should().Be(DeliveryStatus.PickedUp);
+        }
+
+        [Fact]
+        public void MarkInTransit_WhenPickedUp_SetsStatusInTransit()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkPickedUp();
+
+            delivery.MarkInTransit();
+
+            delivery.Status.Should().Be(DeliveryStatus.InTransit);
+        }
+
+        [Fact]
+        public void MarkInTransit_FromAnyStatus_SetsStatusInTransit()
+        {
+            var delivery = CreatePendingDelivery();
+
+            delivery.MarkInTransit();
+
+            delivery.Status.Should().Be(DeliveryStatus.InTransit);
+        }
+
+        [Fact]
+        public void MarkOutForDelivery_WhenInTransit_SetsStatusOutForDelivery()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkPickedUp();
+            delivery.MarkInTransit();
+
+            delivery.MarkOutForDelivery();
+
+            delivery.Status.Should().Be(DeliveryStatus.OutForDelivery);
+        }
+
+        [Fact]
+        public void MarkOutForDelivery_FromAnyStatus_SetsStatusOutForDelivery()
+        {
+            var delivery = CreatePendingDelivery();
+
+            delivery.MarkOutForDelivery();
+
+            delivery.Status.Should().Be(DeliveryStatus.OutForDelivery);
+        }
+
+        [Fact]
+        public void MarkDelivered_FromOutForDelivery_SetsStatusDelivered()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkPickedUp();
+            delivery.MarkInTransit();
+            delivery.MarkOutForDelivery();
+
+            delivery.MarkDelivered();
+
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
+        }
+
+        [Fact]
+        public void MarkDelivered_WhenAlreadyDelivered_IsIdempotent()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkPickedUp();
+            delivery.MarkInTransit();
+            delivery.MarkOutForDelivery();
+            delivery.MarkDelivered();
+
+            delivery.MarkDelivered();
+
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
+        }
+
+        [Fact]
+        public void MarkDelivered_WhenCancelled_SetsStatusDelivered()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkCancelled();
+
+            delivery.MarkDelivered();
+
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
+        }
+
+        [Fact]
+        public void MarkDelivered_WhenReturned_SetsStatusDelivered()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkReturned();
+
+            delivery.MarkDelivered();
+
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
+        }
+
+        [Fact]
+        public void MarkDelivered_WhenException_SetsStatusDelivered()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            delivery.MarkException("error");
+
+            delivery.MarkDelivered();
+
+            delivery.Status.Should().Be(DeliveryStatus.Delivered);
+        }
+
+        [Fact]
+        public void MarkCancelled_WhenNotDelivered_SetsStatusCancelled()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+
+            delivery.MarkCancelled();
+
+            delivery.Status.Should().Be(DeliveryStatus.Cancelled);
+        }
+
+        [Fact]
+        public void MarkCancelled_FromAnyStatus_SetsStatusCancelled()
+        {
+            var delivery = CreatePendingDelivery();
+
+            delivery.MarkCancelled();
+
+            delivery.Status.Should().Be(DeliveryStatus.Cancelled);
+        }
+
+        [Fact]
+        public void MarkReturned_SetsStatusReturned()
+        {
+            var delivery = CreatePendingDelivery();
+
+            delivery.MarkReturned();
+
+            delivery.Status.Should().Be(DeliveryStatus.Returned);
+        }
+
+        [Fact]
+        public void MarkException_SetsStatusExceptionAndMessage()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+
+            delivery.MarkException("Lost in transit");
+
+            delivery.Status.Should().Be(DeliveryStatus.Exception);
+            delivery.Note.Should().Be("Lost in transit");
+        }
+
+        [Fact]
+        public void MarkException_WithNoMessage_DoesNotChangeNote()
+        {
+            var delivery = CreatePendingDelivery();
+            delivery.MarkShipmentCreated("TRACK-1", "ORD-1", 10_000);
+            var originalNote = delivery.Note;
+
+            delivery.MarkException(null);
+
+            delivery.Status.Should().Be(DeliveryStatus.Exception);
+            delivery.Note.Should().Be(originalNote);
+        }
+
         private static Delivery CreatePendingDelivery()
         {
             return Delivery.Create(

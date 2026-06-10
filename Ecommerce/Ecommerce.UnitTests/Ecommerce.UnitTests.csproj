@@ -26,6 +26,10 @@
     <ProjectReference Include="..\Presentation\Presentation.csproj" />
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Domain\Domain.csproj" />
+    <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Presentation\appsettings.Testing.json" Link="appsettings.Testing.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

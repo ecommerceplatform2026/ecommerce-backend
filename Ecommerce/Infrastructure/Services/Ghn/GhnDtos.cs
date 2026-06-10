@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Domain.Enums;
 
 namespace Infrastructure.Services.Ghn
 {
@@ -17,18 +18,21 @@ namespace Infrastructure.Services.Ghn
     {
         public int ProvinceID { get; set; }
         public string ProvinceName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     public sealed class GhnDistrict
     {
         public int DistrictID { get; set; }
         public string DistrictName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     public sealed class GhnWard
     {
         public string WardCode { get; set; } = string.Empty;
         public string WardName { get; set; } = string.Empty;
+        public List<string>? NameExtension { get; set; }
     }
 
     // snake_case for GHN API
@@ -39,6 +43,11 @@ namespace Infrastructure.Services.Ghn
         public string to_address { get; set; } = string.Empty;
         public string to_ward_code { get; set; } = string.Empty;
         public int to_district_id { get; set; }
+        public string? from_name { get; set; }
+        public string? from_phone { get; set; }
+        public string? from_address { get; set; }
+        public int? from_district_id { get; set; }
+        public string? from_ward_code { get; set; }
         public int weight { get; set; }
         public int length { get; set; }
         public int width { get; set; }
@@ -74,8 +83,10 @@ namespace Infrastructure.Services.Ghn
     public sealed class GhnCreateOrderResponse
     {
         public string order_code { get; set; } = string.Empty;
+        public string? sort_code { get; set; }
+        public string? trans_type { get; set; }
         public GhnFee fee { get; set; } = new();
-        public string total_fee { get; set; } = "0";
+        public long total_fee { get; set; }
         public string? expected_delivery_time { get; set; }
     }
 
@@ -83,5 +94,73 @@ namespace Infrastructure.Services.Ghn
     {
         public int main_service { get; set; }
         public int insurance { get; set; }
+        public int cod_fee { get; set; }
+        public int station_do { get; set; }
+        public int station_pu { get; set; }
+        public int @return { get; set; }
+        public int r2s { get; set; }
+        public int return_again { get; set; }
+        public int coupon { get; set; }
+        public int document_return { get; set; }
+        public int double_check { get; set; }
+        public int double_check_deliver { get; set; }
+        public int pick_remote_areas_fee { get; set; }
+        public int deliver_remote_areas_fee { get; set; }
+        public int pick_remote_areas_fee_return { get; set; }
+        public int deliver_remote_areas_fee_return { get; set; }
+        public int cod_failed_fee { get; set; }
+        public int change_to_address_fee { get; set; }
+        public int change_return_address_fee { get; set; }
+    }
+
+    /// <summary>
+    /// Webhook payload from GHN when shipment status changes.
+    /// GHN sends POST with Content-Type: application/json to our registered URL.
+    /// </summary>
+    public sealed class GhnWebhookPayload
+    {
+        public string order_code { get; set; } = string.Empty;
+        public string status { get; set; } = string.Empty;
+        public string? timestamp { get; set; }
+        public GhnWebhookData? data { get; set; }
+    }
+
+    public sealed class GhnWebhookData
+    {
+        public string? current_status { get; set; }
+        public string? previous_status { get; set; }
+        public string? order_code { get; set; }
+        public string? reason { get; set; }
+    }
+
+    /// <summary>
+    /// Maps GHN webhook status string to internal DeliveryStatus.
+    /// </summary>
+    public static class GhnStatusMapper
+    {
+        private static readonly Dictionary<string, DeliveryStatus> Map = new()
+        {
+            ["ready_to_pick"] = DeliveryStatus.Created,
+            ["picking"] = DeliveryStatus.PickedUp,
+            ["picked"] = DeliveryStatus.InTransit,
+            ["storing"] = DeliveryStatus.InTransit,
+            ["transporting"] = DeliveryStatus.InTransit,
+            ["sorting"] = DeliveryStatus.InTransit,
+            ["delivering"] = DeliveryStatus.OutForDelivery,
+            ["delivered"] = DeliveryStatus.Delivered,
+            ["delivery_fail"] = DeliveryStatus.Failed,
+            ["return"] = DeliveryStatus.Returned,
+            ["returned"] = DeliveryStatus.Returned,
+            ["cancel"] = DeliveryStatus.Cancelled,
+            ["damage"] = DeliveryStatus.Exception,
+            ["lost"] = DeliveryStatus.Exception,
+        };
+
+        public static DeliveryStatus ToDeliveryStatus(string ghnStatus)
+        {
+            if (Map.TryGetValue(ghnStatus.ToLowerInvariant(), out var status))
+                return status;
+            throw new ArgumentException($"Unknown GHN status: '{ghnStatus}'.");
+        }
     }
 }

@@ -108,9 +108,12 @@ namespace Infrastructure.DependencyInjection
                 // Configured via GhnOptions in constructor
             }).AddStandardResilienceHandler();
             services.AddScoped<GhnLocationValidator>();
+            services.AddScoped<GhnShopService>();
 
             // Register GHN provider as IShippingProvider — auto-discovered by ShippingService via IEnumerable
             services.AddScoped<IShippingProvider, GhnShippingProvider>();
+
+
 
             return services;
         }

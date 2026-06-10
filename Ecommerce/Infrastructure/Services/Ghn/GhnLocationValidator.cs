@@ -22,30 +22,36 @@ namespace Infrastructure.Services.Ghn
         public async Task<(bool IsValid, int? DistrictId, string? WardCode, string? Error)>
             ValidateAsync(string province, string district, string ward, CancellationToken ct = default)
         {
-            var provinces = await _client.PostAsync<GhnProvince[]>("/master-data/province", new { }, ct);
+            var provinces = await _client.PostAsync<GhnProvince[]>("master-data/province", new { }, ct);
             if (!provinces.IsSuccess || provinces.Data == null)
                 return (false, null, null, "Failed to fetch provinces from GHN.");
 
             var p = provinces.Data.FirstOrDefault(x =>
-                x.ProvinceName.Contains(province, StringComparison.OrdinalIgnoreCase));
+                x.ProvinceName.Contains(province, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(province, StringComparison.OrdinalIgnoreCase))));
             if (p == null) return (false, null, null, $"Province '{province}' not found.");
 
-            var districts = await _client.PostAsync<GhnDistrict[]>("/master-data/district",
+            var districts = await _client.PostAsync<GhnDistrict[]>("master-data/district",
                 new { province_id = p.ProvinceID }, ct);
             if (!districts.IsSuccess || districts.Data == null)
                 return (false, null, null, "Failed to fetch districts from GHN.");
 
             var d = districts.Data.FirstOrDefault(x =>
-                x.DistrictName.Contains(district, StringComparison.OrdinalIgnoreCase));
+                x.DistrictName.Contains(district, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(district, StringComparison.OrdinalIgnoreCase))));
             if (d == null) return (false, null, null, $"District '{district}' not found.");
 
-            var wards = await _client.PostAsync<GhnWard[]>("/master-data/ward",
+            var wards = await _client.PostAsync<GhnWard[]>("master-data/ward",
                 new { district_id = d.DistrictID }, ct);
             if (!wards.IsSuccess || wards.Data == null)
                 return (false, null, null, "Failed to fetch wards from GHN.");
 
             var w = wards.Data.FirstOrDefault(x =>
-                x.WardName.Contains(ward, StringComparison.OrdinalIgnoreCase));
+                x.WardName.Contains(ward, StringComparison.OrdinalIgnoreCase)
+                || (x.NameExtension != null && x.NameExtension.Any(ext =>
+                    ext.Contains(ward, StringComparison.OrdinalIgnoreCase))));
             if (w == null) return (false, null, null, $"Ward '{ward}' not found.");
 
             return (true, d.DistrictID, w.WardCode, null);

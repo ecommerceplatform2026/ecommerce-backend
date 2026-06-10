@@ -1,6 +1,7 @@
 using Application.Common.Response;
 using Application.Configurations;
 using Application.DTOs.Delivery;
+using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
@@ -38,13 +39,13 @@ namespace Application.Services
             _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
         }
 
-        public async Task<Result<string>> CreateShipmentAsync(
+        public async Task<Result<ShipmentResponse>> CreateShipmentAsync(
             Guid orderId,
             string carrierCode,
             CancellationToken cancellationToken = default)
         {
             if (orderId == Guid.Empty)
-                return Result<string>.Failure("Order ID cannot be empty.");
+                return Result<ShipmentResponse>.Failure("Order ID cannot be empty.");
 
             if (string.IsNullOrWhiteSpace(carrierCode))
                 carrierCode = _settings.DefaultCarrier;
@@ -53,7 +54,7 @@ namespace Application.Services
                 p.CarrierCode.Equals(carrierCode, StringComparison.OrdinalIgnoreCase));
 
             if (provider == null)
-                return Result<string>.Failure($"No shipping provider found for carrier '{carrierCode}'.");
+                return Result<ShipmentResponse>.Failure($"No shipping provider found for carrier '{carrierCode}'.");
 
             var order = await _unitOfWork.GetRepository<Order>()
                 .FindAsync(
@@ -65,19 +66,19 @@ namespace Application.Services
                     o => o.User!.UserAddresses);
 
             if (order == null)
-                return Result<string>.NotFound("Order not found.");
+                return Result<ShipmentResponse>.NotFound("Order not found.");
 
             if (order.Status != OrderStatus.Pending && order.Status != OrderStatus.Confirmed)
-                return Result<string>.Failure($"Cannot create shipment for order in '{order.Status}' status.");
+                return Result<ShipmentResponse>.Failure($"Cannot create shipment for order in '{order.Status}' status.");
 
             if (order.Delivery != null)
-                return Result<string>.Failure("Shipment already exists for this order.");
+                return Result<ShipmentResponse>.Failure("Shipment already exists for this order.");
 
             var address = order.User?.UserAddresses?.FirstOrDefault(a => a.IsDefault && !a.IsDeleted)
                 ?? order.User?.UserAddresses?.FirstOrDefault(a => !a.IsDeleted);
 
             if (address == null)
-                return Result<string>.Failure("User has no shipping address.");
+                return Result<ShipmentResponse>.Failure("User has no shipping address.");
 
             foreach (var item in order.OrderItems)
             {
@@ -85,7 +86,7 @@ namespace Application.Services
                     .FindAsync(v => v.Id == item.ProductVariantId, asNoTracking: true, cancellationToken);
 
                 if (variant == null || variant.IsOutOfStock())
-                    return Result<string>.Failure($"Product for variant {item.ProductVariantId} is out of stock.");
+                    return Result<ShipmentResponse>.Failure($"Product for variant {item.ProductVariantId} is out of stock.");
             }
 
             int totalWeight = order.OrderItems.Sum(oi =>
@@ -132,7 +133,7 @@ namespace Application.Services
             var result = await provider.CreateShipmentAsync(order.Id, shipmentInfo, cancellationToken);
 
             if (!result.IsSuccess || result.Value == null)
-                return Result<string>.Failure(result.Errors?.FirstOrDefault() ?? "Shipping provider failed.");
+                return Result<ShipmentResponse>.Failure(result.Errors?.FirstOrDefault() ?? "Shipping provider failed.");
 
             var delivery = Delivery.Create(
                 order.Id,
@@ -157,7 +158,7 @@ namespace Application.Services
             _unitOfWork.GetRepository<Order>().Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            return Result<string>.Success(result.Value.TrackingCode);
+            return Result<ShipmentResponse>.Success(result.Value);
         }
 
         private sealed class SnapshotData

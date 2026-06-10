@@ -94,5 +94,65 @@ namespace Domain.Entities
             Status = DeliveryStatus.Failed;
             Note = errorMessage;
         }
+
+        public void MarkPickedUp()
+        {
+            Status = DeliveryStatus.PickedUp;
+        }
+
+        public void MarkInTransit()
+        {
+            Status = DeliveryStatus.InTransit;
+        }
+
+        public void MarkOutForDelivery()
+        {
+            Status = DeliveryStatus.OutForDelivery;
+        }
+
+        public void MarkDelivered()
+        {
+            if (Status == DeliveryStatus.Delivered)
+                return;
+            Status = DeliveryStatus.Delivered;
+        }
+
+        public void MarkCancelled()
+        {
+            Status = DeliveryStatus.Cancelled;
+        }
+
+        public void MarkReturned()
+        {
+            Status = DeliveryStatus.Returned;
+        }
+
+        public void MarkException(string? errorMessage)
+        {
+            Status = DeliveryStatus.Exception;
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+                Note = errorMessage;
+        }
+
+        public void UpdateWeight(int newWeight)
+        {
+            if (newWeight <= 0)
+                return;
+            Weight = newWeight;
+        }
+
+        public void UpdateCodAmount(long newCodAmount)
+        {
+            if (newCodAmount < 0)
+                return;
+            CodAmount = newCodAmount;
+        }
+
+        public void UpdateShippingFee(long newShippingFee)
+        {
+            if (newShippingFee < 0)
+                return;
+            ShippingFee = newShippingFee;
+        }
     }
 }
