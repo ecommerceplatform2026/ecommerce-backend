@@ -49,7 +49,8 @@ namespace Application.Services
                     orderBy: o => o.CreatedAt,
                     isDescending: true,
                     cancellationToken: cancellationToken,
-                    o => o.OrderItems);
+                    o => o.OrderItems,
+                    o => o.Delivery!);
 
             var result = new PagedResult<OrderResponse>
             {
@@ -60,6 +61,26 @@ namespace Application.Services
             };
 
             return Result<PagedResult<OrderResponse>>.Success(result);
+        }
+
+        public async Task<Result<OrderResponse>> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var userIdStr = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+                return Result<OrderResponse>.Unauthorized("User is not authenticated.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == id && o.UserId == userId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken: cancellationToken,
+                    o => o.OrderItems,
+                    o => o.Delivery!);
+
+            if (order == null)
+                return Result<OrderResponse>.NotFound("Order not found.");
+
+            return Result<OrderResponse>.Success(order.ToOrderResponse());
         }
     }
 }

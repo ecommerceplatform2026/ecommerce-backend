@@ -26,47 +26,98 @@ namespace Ecommerce.UnitTests.Controllers
             _controller = new OrdersController(_orderServiceMock.Object);
         }
 
+        private static readonly Guid OrderId = Guid.NewGuid();
+        private static readonly List<OrderItemResponse> Items = new()
+        {
+            new OrderItemResponse(Guid.NewGuid(), Guid.NewGuid(), 1, 150000, "snapshot")
+        };
+
         [Fact]
         public async Task GetMyOrders_ReturnsOk_WithPagedList()
         {
-            // Arrange
-            var request = new GetOrdersRequest
-            {
-                Page = 1,
-                PageSize = 10,
-                Status = OrderStatus.Pending
-            };
-
-            var items = new List<OrderItemResponse>
-            {
-                new OrderItemResponse(Guid.NewGuid(), Guid.NewGuid(), 1, 150000, "snapshot")
-            };
-            var orderResponses = new List<OrderResponse>
-            {
-                new OrderResponse(Guid.NewGuid(), 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, items)
-            };
-
-            var pagedResult = new PagedResult<OrderResponse>
-            {
-                Items = orderResponses,
-                Page = 1,
-                PageSize = 10,
-                TotalCount = 1
-            };
-            var serviceResult = Result<PagedResult<OrderResponse>>.Success(pagedResult);
+            var request = new GetOrdersRequest { Page = 1, PageSize = 10, Status = OrderStatus.Pending };
+            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items) };
+            var paged = new PagedResult<OrderResponse> { Items = orders, Page = 1, PageSize = 10, TotalCount = 1 };
 
             _orderServiceMock
                 .Setup(s => s.GetMyOrdersAsync(request, It.IsAny<CancellationToken>()))
-                .ReturnsAsync(serviceResult);
+                .ReturnsAsync(Result<PagedResult<OrderResponse>>.Success(paged));
 
-            // Act
             var result = await _controller.GetMyOrders(request, CancellationToken.None);
 
-            // Assert
-            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PagedResult<OrderResponse>>>().Subject;
+            var apiResponse = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<PagedResult<OrderResponse>>>().Subject;
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data!.Items.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task GetOrderById_WhenOrderHasTracking_ReturnsTrackingInfo()
+        {
+            var tracking = new TrackingInfo("TRACK-001", "GHN", DeliveryStatus.InTransit);
+            var order = new OrderResponse(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking);
+
+            _orderServiceMock
+                .Setup(s => s.GetOrderByIdAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<OrderResponse>.Success(order));
+
+            var result = await _controller.GetOrderById(OrderId, CancellationToken.None);
+
+            var data = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<OrderResponse>>().Subject;
+            data.Success.Should().BeTrue();
+            data.Data!.Tracking.Should().NotBeNull();
+            data.Data.Tracking!.TrackingCode.Should().Be("TRACK-001");
+            data.Data.Tracking.CarrierCode.Should().Be("GHN");
+            data.Data.Tracking.Status.Should().Be(DeliveryStatus.InTransit);
+        }
+
+        [Fact]
+        public async Task GetOrderById_WhenOrderHasNoTracking_TrackingIsNull()
+        {
+            var order = new OrderResponse(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items);
+
+            _orderServiceMock
+                .Setup(s => s.GetOrderByIdAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<OrderResponse>.Success(order));
+
+            var result = await _controller.GetOrderById(OrderId, CancellationToken.None);
+
+            var data = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<OrderResponse>>().Subject;
+            data.Data!.Tracking.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task GetOrderById_WhenOrderNotFound_Returns404()
+        {
+            _orderServiceMock
+                .Setup(s => s.GetOrderByIdAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<OrderResponse>.NotFound("Order not found."));
+
+            var result = await _controller.GetOrderById(OrderId, CancellationToken.None);
+
+            var statusCodeResult = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        }
+
+        [Fact]
+        public async Task GetMyOrders_WithTrackingList_IncludesTrackingInResponse()
+        {
+            var request = new GetOrdersRequest { Page = 1, PageSize = 10 };
+            var tracking = new TrackingInfo("TRACK-001", "GHN", DeliveryStatus.InTransit);
+            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking) };
+            var paged = new PagedResult<OrderResponse> { Items = orders, Page = 1, PageSize = 10, TotalCount = 1 };
+
+            _orderServiceMock
+                .Setup(s => s.GetMyOrdersAsync(request, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<PagedResult<OrderResponse>>.Success(paged));
+
+            var result = await _controller.GetMyOrders(request, CancellationToken.None);
+
+            var data = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<PagedResult<OrderResponse>>>().Subject;
+            data.Data!.Items[0].Tracking.Should().NotBeNull();
+            data.Data.Items[0].Tracking!.TrackingCode.Should().Be("TRACK-001");
         }
     }
 }
