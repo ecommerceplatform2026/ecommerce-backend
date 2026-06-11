@@ -1,7 +1,6 @@
 using System.Net.Http.Json;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
-using Domain.Enums;
 using Infrastructure.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -35,36 +34,17 @@ public sealed class PerformanceTestFixture : WebApplicationFactory<Program>, IAs
         Client = CreateClient();
 
         var seeder = new SeedDataGenerator(Services);
-        await seeder.SeedAsync();
+        var seedResult = await seeder.SeedAsync();
 
-        await QueryEntityIdsAsync();
+        ProductId = seedResult.ProductId;
+        VariantId = seedResult.VariantId;
+        AddressId = seedResult.AddressId;
+        PendingOrderId = seedResult.PendingOrderId;
+        PendingOrderCode = seedResult.PendingOrderCode;
+        CompletedOrderId = seedResult.CompletedOrderId;
 
         AdminToken = await LoginAsync("admin@test.com", "Admin123!");
         UserToken = await LoginAsync("user@test.com", "User123!");
-    }
-
-    private async Task QueryEntityIdsAsync()
-    {
-        using var scope = Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<EcommerceContext>();
-
-        var user = await context.Users.FirstAsync(u => u.Email == "user@test.com");
-
-        ProductId = (await context.Products.FirstOrDefaultAsync())?.Id ?? Guid.Empty;
-
-        VariantId = (await context.ProductVariants.FirstOrDefaultAsync())?.Id ?? Guid.Empty;
-
-        var address = await context.UserAddresses.FirstAsync(a => a.UserId == user.Id);
-        AddressId = address.Id;
-
-        var pendingOrder = await context.Set<Domain.Entities.Order>()
-            .FirstAsync(o => o.UserId == user.Id && o.Status == OrderStatus.Pending);
-        PendingOrderId = pendingOrder.Id;
-        PendingOrderCode = pendingOrder.OrderCode;
-
-        var completedOrder = await context.Set<Domain.Entities.Order>()
-            .FirstAsync(o => o.UserId == user.Id && o.Status == OrderStatus.Completed);
-        CompletedOrderId = completedOrder.Id;
     }
 
     async Task IAsyncLifetime.DisposeAsync()
@@ -103,11 +83,17 @@ public sealed class PerformanceTestFixture : WebApplicationFactory<Program>, IAs
 
     private void ReplaceWithRedis(IServiceCollection services)
     {
-        var redisDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IConnectionMultiplexer));
-        if (redisDescriptor != null) services.Remove(redisDescriptor);
+        var muxDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IConnectionMultiplexer));
+        if (muxDescriptor != null) services.Remove(muxDescriptor);
 
+        var cacheDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache));
+        if (cacheDescriptor != null) services.Remove(cacheDescriptor);
+
+        var connString = _containers!.RedisConnectionString;
         services.AddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(_containers!.RedisConnectionString));
+            ConnectionMultiplexer.Connect(connString));
+        services.AddStackExchangeRedisCache(options =>
+            options.Configuration = connString);
     }
 
     private static void MockExternalServices(IServiceCollection services)
