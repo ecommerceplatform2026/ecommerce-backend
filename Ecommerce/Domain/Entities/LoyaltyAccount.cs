@@ -79,6 +79,17 @@ namespace Domain.Entities
             AvailablePoints -= points;
         }
 
+        public void DeductPendingPoints(int points)
+        {
+            if (points <= 0)
+                throw new ArgumentException("Points must be greater than zero.", nameof(points));
+
+            if (PendingPoints < points)
+                throw new InvalidOperationException("Not enough pending points.");
+
+            PendingPoints -= points;
+        }
+
         public void ReverseEarnedPoints(int points)
         {
             if (points <= 0)

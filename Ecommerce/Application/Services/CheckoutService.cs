@@ -1,7 +1,6 @@
 using Application.Common.Exceptions;
 using Application.Common.Response;
 using Application.DTOs.Checkout;
-using Application.DTOs.Loyalty;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
@@ -23,22 +22,19 @@ namespace Application.Services
         private readonly IVnPayService _vnPayService;
         private readonly IMomoService _momoService;
         private readonly IZaloPayService _zaloPayService;
-        private readonly ILoyaltyService _loyaltyService;
 
         public CheckoutService(
             IUnitOfWork unitOfWork,
             ICurrentUserService currentUserService,
             IVnPayService vnPayService,
             IMomoService momoService,
-            IZaloPayService zaloPayService,
-            ILoyaltyService loyaltyService)
+            IZaloPayService zaloPayService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
             _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
             _momoService = momoService ?? throw new ArgumentNullException(nameof(momoService));
             _zaloPayService = zaloPayService ?? throw new ArgumentNullException(nameof(zaloPayService));
-            _loyaltyService = loyaltyService ?? throw new ArgumentNullException(nameof(loyaltyService));
         }
 
         public async Task<Result<CheckoutResponse>> ProcessCheckoutAsync(CheckoutRequest request, CancellationToken cancellationToken = default)
@@ -62,7 +58,7 @@ namespace Application.Services
                 var existingPayment = await _unitOfWork.GetRepository<Payment>()
                     .FindAsync(p => p.Order != null
                         && p.Order.UserId == userId
-                        && p.Order.Status == OrderStatus.Pending
+                        && p.Order.Status == OrderStatus.Confirmed
                         && p.Status == PaymentStatus.Pending
                         && (p.Order.PaymentMethod == PaymentMethod.VNPay
                             || p.Order.PaymentMethod == PaymentMethod.MoMo
@@ -201,16 +197,29 @@ namespace Application.Services
 
                             if (request.RedeemedPoints.HasValue && request.RedeemedPoints.Value > 0)
                             {
-                                var redeemRequest = new RedeemPointsRequest(order.Id, request.RedeemedPoints.Value);
-                                var redeemResult = await _loyaltyService.RedeemPointsAtCheckoutAsync(redeemRequest, cancellationToken);
+                                var points = request.RedeemedPoints.Value;
+                                LoyaltyService.ValidateRedemptionPoints(points);
 
-                                if (!redeemResult.IsSuccess)
+                                var discount = LoyaltyService.CalculateRedeemValue(points);
+                                var subtotal = order.TotalAmount.Amount;
+                                const long minOrderTotal = 10_000;
+
+                                if (subtotal - discount < minOrderTotal)
                                 {
-                                    throw new InvalidOperationException(string.Join("; ", redeemResult.Errors));
+                                    var maxAffordablePoints = (int)((subtotal - minOrderTotal) * LoyaltyService.PointEarnRate) * LoyaltyService.PointRedeemRate;
+                                    if (maxAffordablePoints <= 0)
+                                        throw new InvalidOperationException($"Redemption would reduce order total below minimum. Order total after discount must be at least {minOrderTotal} VND.");
+                                    points = maxAffordablePoints;
+                                    discount = LoyaltyService.CalculateRedeemValue(points);
                                 }
+
+                                if (points == 0)
+                                    throw new InvalidOperationException("Cannot redeem points: discount would exceed order total.");
+
+                                order.ApplyDiscount(discount);
                             }
 
-                            long payableAmount = order.TotalAmount.Amount - order.DiscountAmount;
+                            long paidAmount = order.TotalAmount.Amount - order.DiscountAmount;
 
                             string? checkoutUrl = null;
                             string paymentLinkId = "";
@@ -218,25 +227,30 @@ namespace Application.Services
                             if (request.PaymentMethod == PaymentMethod.VNPay)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
-                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, payableAmount);
+                                checkoutUrl = _vnPayService.CreatePaymentUrl(orderCode, paidAmount);
                             }
                             else if (request.PaymentMethod == PaymentMethod.MoMo)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
-                                checkoutUrl = await _momoService.CreatePaymentUrlAsync(orderCode, totalAmount, cancellationToken);
+                                checkoutUrl = await _momoService.CreatePaymentUrlAsync(orderCode, paidAmount, cancellationToken);
                             }
                             else if (request.PaymentMethod == PaymentMethod.ZaloPay)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
-                                checkoutUrl = await _zaloPayService.CreatePaymentUrlAsync(orderCode, totalAmount, cancellationToken);
+                                checkoutUrl = await _zaloPayService.CreatePaymentUrlAsync(orderCode, paidAmount, cancellationToken);
                             }
                             else if (request.PaymentMethod == PaymentMethod.PayOS)
                             {
                                 paymentLinkId = Guid.NewGuid().ToString();
                                 checkoutUrl = $"https://payment-gateway.mock/pay/{orderCode}";
                             }
+                            else if (request.PaymentMethod == PaymentMethod.COD)
+                            {
+                                order.MarkAsConfirmed();
+                                _unitOfWork.GetRepository<Order>().Update(order);
+                            }
 
-                            var payment = Payment.Create(order.Id, orderCode, new Money(payableAmount, "VND"), paymentLinkId, checkoutUrl);
+                            var payment = Payment.Create(order.Id, orderCode, new Money(paidAmount, "VND"), paymentLinkId, checkoutUrl);
 
                             await _unitOfWork.GetRepository<Payment>().AddAsync(payment, cancellationToken);
 

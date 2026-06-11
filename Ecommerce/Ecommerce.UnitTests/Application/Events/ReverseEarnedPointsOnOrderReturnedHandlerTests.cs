@@ -30,13 +30,13 @@ namespace Ecommerce.UnitTests.EventTests
             var cancellationToken = new CancellationTokenSource().Token;
 
             _loyaltyServiceMock
-                .Setup(s => s.ReverseEarnedPointsForReturnedOrderAsync(order.Id, cancellationToken))
+                .Setup(s => s.CancelPendingTransactionsForOrderAsync(order.Id, cancellationToken))
                 .ReturnsAsync(Application.Common.Response.Result<int>.Success(300));
 
             await _handler.HandleAsync(domainEvent, cancellationToken);
 
             _loyaltyServiceMock.Verify(
-                s => s.ReverseEarnedPointsForReturnedOrderAsync(order.Id, cancellationToken),
+                s => s.CancelPendingTransactionsForOrderAsync(order.Id, cancellationToken),
                 Times.Once);
         }
 

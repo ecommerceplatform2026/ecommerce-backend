@@ -19,11 +19,9 @@ namespace Application.Events
         public Task HandleAsync(OrderCancelledDomainEvent domainEvent, CancellationToken cancellationToken)
         {
             if (domainEvent == null)
-            {
                 throw new ArgumentNullException(nameof(domainEvent));
-            }
 
-            return _loyaltyService.RefundRedeemedPointsForOrderAsync(domainEvent.Order.Id, cancellationToken);
+            return _loyaltyService.CancelPendingTransactionsForOrderAsync(domainEvent.Order.Id, cancellationToken);
         }
     }
 }

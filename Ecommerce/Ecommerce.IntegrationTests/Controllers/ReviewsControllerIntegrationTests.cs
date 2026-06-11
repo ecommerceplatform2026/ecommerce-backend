@@ -76,7 +76,7 @@ namespace Ecommerce.IntegrationTests.Controllers
                 // Add a confirmed paid order with this product variant
                 var order = Order.Create(user.Id, 777666, PaymentMethod.COD);
                 order.AddItem(variantId, 1, new Money(100000), "snapshot");
-                order.ConfirmPayment(); // mark as confirmed/paid
+                order.MarkAsConfirmed(); // mark as confirmed/paid
                 db.Orders.Add(order);
                 await db.SaveChangesAsync();
                 orderId = order.Id;

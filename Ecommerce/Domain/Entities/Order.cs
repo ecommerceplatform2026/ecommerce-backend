@@ -40,11 +40,10 @@ namespace Domain.Entities
 
         public static Order Create(Guid userId, int orderCode, PaymentMethod paymentMethod)
         {
-            var order = new Order(userId, orderCode, paymentMethod);
-            if (paymentMethod == PaymentMethod.COD)
+            var order = new Order(userId, orderCode, paymentMethod)
             {
-                order.AddDomainEvent(new Events.OrderCreatedDomainEvent(order));
-            }
+                Status = OrderStatus.Pending
+            };
             return order;
         }
 
@@ -65,12 +64,16 @@ namespace Domain.Entities
             DiscountAmount = discountAmount;
         }
 
-        public void ConfirmPayment()
+        public void MarkAsConfirmed()
         {
+            if (Status == OrderStatus.Confirmed)
+                return;
+
             if (Status != OrderStatus.Pending)
                 throw new InvalidOperationException($"Cannot confirm payment for an order in '{Status}' status.");
 
             Status = OrderStatus.Confirmed;
+            AddDomainEvent(new Events.OrderConfirmedDomainEvent(this));
         }
 
         public void MarkAsProcessing()

@@ -2,12 +2,14 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Events;
 using Application.Common.Exceptions;
 using Domain.Common;
+using Domain.Entities;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -66,6 +68,7 @@ namespace Infrastructure.Repositories.Base
             if (HasActiveTransaction)
             {
                 _pendingDomainEvents.AddRange(domainEvents);
+
                 foreach (var entity in domainEntities)
                 {
                     entity.Entity.ClearDomainEvents();
@@ -116,7 +119,5 @@ namespace Infrastructure.Repositories.Base
         {
             return new EfExecutionStrategy(_context.Database.CreateExecutionStrategy());
         }
-
-
     }
 }

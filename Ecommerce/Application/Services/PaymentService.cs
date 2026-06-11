@@ -169,7 +169,7 @@ namespace Application.Services
 
                 if (paymentRecord.Order != null)
                 {
-                    paymentRecord.Order.ConfirmPayment();
+                    paymentRecord.Order.MarkAsConfirmed();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
                 }
             }
