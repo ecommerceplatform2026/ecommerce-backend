@@ -4,7 +4,7 @@ using NBomber.CSharp;
 namespace Ecommerce.PerformanceTests;
 
 [Collection("PerformanceTests")]
-public sealed class AuthStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class AuthStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public AuthStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -13,7 +13,7 @@ public sealed class AuthStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class ProductsStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class ProductsStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public ProductsStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -22,7 +22,7 @@ public sealed class ProductsStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class CategoriesStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class CategoriesStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public CategoriesStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -31,7 +31,7 @@ public sealed class CategoriesStressTests : IClassFixture<PerformanceTestFixture
 }
 
 [Collection("PerformanceTests")]
-public sealed class ProductVariantsStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class ProductVariantsStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public ProductVariantsStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -40,7 +40,7 @@ public sealed class ProductVariantsStressTests : IClassFixture<PerformanceTestFi
 }
 
 [Collection("PerformanceTests")]
-public sealed class CartStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class CartStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public CartStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -49,7 +49,7 @@ public sealed class CartStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class CheckoutStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class CheckoutStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public CheckoutStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -58,7 +58,7 @@ public sealed class CheckoutStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class OrdersStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class OrdersStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public OrdersStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -67,7 +67,7 @@ public sealed class OrdersStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class PaymentsStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class PaymentsStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public PaymentsStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -76,7 +76,7 @@ public sealed class PaymentsStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class DeliveryStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class DeliveryStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public DeliveryStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -85,7 +85,7 @@ public sealed class DeliveryStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class ReviewsStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class ReviewsStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public ReviewsStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -94,7 +94,7 @@ public sealed class ReviewsStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class WishlistStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class WishlistStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public WishlistStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -103,7 +103,7 @@ public sealed class WishlistStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class UserStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class UserStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public UserStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -112,7 +112,7 @@ public sealed class UserStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class AddressesStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class AddressesStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public AddressesStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -121,7 +121,7 @@ public sealed class AddressesStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class LoyaltyStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class LoyaltyStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public LoyaltyStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
@@ -130,7 +130,7 @@ public sealed class LoyaltyStressTests : IClassFixture<PerformanceTestFixture>
 }
 
 [Collection("PerformanceTests")]
-public sealed class AdminDashboardStressTests : IClassFixture<PerformanceTestFixture>
+public sealed class AdminDashboardStressTests
 {
     private readonly PerformanceTestFixture _fixture;
     public AdminDashboardStressTests(PerformanceTestFixture fixture) { _fixture = fixture; }
