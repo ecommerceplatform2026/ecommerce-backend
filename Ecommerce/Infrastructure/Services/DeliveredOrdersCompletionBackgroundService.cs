@@ -86,7 +86,7 @@ public sealed class DeliveredOrdersCompletionBackgroundService
         var deliveredOrders = await unitOfWork
             .GetRepository<Order>()
             .GetAllTrackedAsync(
-                o => o.Status == OrderStatus.Delivered && !o.IsDeleted,
+                o => o.Status == OrderStatus.Delivered && !o.IsDeleted && o.Delivery!.CreatedAt < DateTime.UtcNow.AddDays(-7),
                 cancellationToken);
 
         if (deliveredOrders.Count == 0)
