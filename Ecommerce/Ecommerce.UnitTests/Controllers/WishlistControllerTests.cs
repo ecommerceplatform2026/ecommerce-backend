@@ -1,4 +1,5 @@
 using Application.Common.Response;
+using Application.DTOs.Cart;
 using Application.DTOs.Wishlist;
 using Application.Interfaces.Services;
 using FluentAssertions;
@@ -154,6 +155,42 @@ namespace Ecommerce.UnitTests.Controllers
             apiResponse.Success.Should().BeTrue();
             apiResponse.Data.Should().NotBeNull();
             apiResponse.Data![0].ProductName.Should().Be("Merged Product");
+        }
+
+        [Fact]
+        public async Task MoveToCart_ReturnsOk_WithCartItem()
+        {
+            // Arrange
+            var variantId = Guid.NewGuid();
+            var mockResponse = new CartItemResponse(
+                Id: Guid.NewGuid(),
+                ProductVariantId: variantId,
+                ProductId: Guid.NewGuid(),
+                ProductName: "Test Product",
+                ProductImageUrl: "url",
+                SKU: "SKU1",
+                Color: "Red",
+                Size: "M",
+                Price: 1000,
+                Quantity: 1,
+                Stock: 10,
+                IsLowStock: false,
+                IsOutOfStock: false);
+
+            _wishlistServiceMock
+                .Setup(s => s.MoveToCartAsync(variantId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<CartItemResponse>.Success(mockResponse));
+
+            // Act
+            var result = await _controller.MoveToCart(variantId, CancellationToken.None);
+
+            // Assert
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<CartItemResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().NotBeNull();
+            apiResponse.Data!.ProductVariantId.Should().Be(variantId);
+            apiResponse.Data.Quantity.Should().Be(1);
         }
     }
 }

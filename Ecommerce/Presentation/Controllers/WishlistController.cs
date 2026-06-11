@@ -42,6 +42,14 @@ namespace Presentation.Controllers
             return this.FromResult(result);
         }
 
+        [HttpPost("items/{variantId:guid}/move-to-cart")]
+        [Authorize]
+        public async Task<IActionResult> MoveToCart(Guid variantId, CancellationToken cancellationToken)
+        {
+            var result = await _wishlistService.MoveToCartAsync(variantId, cancellationToken);
+            return this.FromResult(result);
+        }
+
         [HttpPost("merge")]
         [Authorize]
         public async Task<IActionResult> MergeWishlist([FromBody] MergeWishlistRequest request, CancellationToken cancellationToken)

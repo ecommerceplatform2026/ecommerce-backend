@@ -24,6 +24,7 @@ namespace Ecommerce.UnitTests.Services
         private readonly Mock<ICurrentUserService> _currentUserServiceMock;
         private readonly Mock<IGenericRepository<WishlistItem>> _wishlistRepositoryMock;
         private readonly Mock<IGenericRepository<ProductVariant>> _variantRepositoryMock;
+        private readonly Mock<IGenericRepository<CartItem>> _cartRepositoryMock;
         private readonly WishlistService _service;
 
         public WishlistServiceTests()
@@ -32,9 +33,11 @@ namespace Ecommerce.UnitTests.Services
             _currentUserServiceMock = new Mock<ICurrentUserService>();
             _wishlistRepositoryMock = new Mock<IGenericRepository<WishlistItem>>();
             _variantRepositoryMock = new Mock<IGenericRepository<ProductVariant>>();
+            _cartRepositoryMock = new Mock<IGenericRepository<CartItem>>();
 
             _unitOfWorkMock.Setup(u => u.GetRepository<WishlistItem>()).Returns(_wishlistRepositoryMock.Object);
             _unitOfWorkMock.Setup(u => u.GetRepository<ProductVariant>()).Returns(_variantRepositoryMock.Object);
+            _unitOfWorkMock.Setup(u => u.GetRepository<CartItem>()).Returns(_cartRepositoryMock.Object);
 
             _service = new WishlistService(_unitOfWorkMock.Object, _currentUserServiceMock.Object);
         }
@@ -343,6 +346,181 @@ namespace Ecommerce.UnitTests.Services
             result.IsSuccess.Should().BeTrue();
             _wishlistRepositoryMock.Verify(r => r.AddAsync(It.Is<WishlistItem>(w => w.ProductVariantId == newVariantId), It.IsAny<CancellationToken>()), Times.Once);
             _wishlistRepositoryMock.Verify(r => r.AddAsync(It.Is<WishlistItem>(w => w.ProductVariantId == existingVariantId), It.IsAny<CancellationToken>()), Times.Never);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenUserNotLoggedIn_ReturnsUnauthorized()
+        {
+            SetupCurrentUser(null);
+
+            var result = await _service.MoveToCartAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("User is not authenticated.");
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenItemNotInWishlist_ReturnsNotFound()
+        {
+            var userId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+            SetupWishlistItem(null); // not in wishlist
+
+            var result = await _service.MoveToCartAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Product variant is not in your wishlist.");
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenVariantNotFound_ReturnsNotFound()
+        {
+            var userId = Guid.NewGuid();
+            var variantId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+            
+            var wishlistItem = WishlistItem.Create(userId, variantId);
+            SetupWishlistItem(wishlistItem);
+            SetupProductVariant(variantId, null); // variant not found
+
+            var result = await _service.MoveToCartAsync(variantId, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Product variant not found.");
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenProductInactive_ReturnsFailure()
+        {
+            var userId = Guid.NewGuid();
+            var variantId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+
+            var wishlistItem = WishlistItem.Create(userId, variantId);
+            SetupWishlistItem(wishlistItem);
+
+            var product = Product.Create(Guid.NewGuid(), "Inactive Product", "Desc", "Material", new Money(100), ProductStatus.Inactive);
+            var variant = ProductVariant.Create(product.Id, new Sku("SKU-1"), "Color", "Size", 10, new Money(100));
+            variant.Product = product;
+            SetupProductVariant(variantId, variant);
+
+            var result = await _service.MoveToCartAsync(variantId, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Product is inactive or unavailable.");
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenOutOfStock_ReturnsFailure()
+        {
+            var userId = Guid.NewGuid();
+            var variantId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+
+            var wishlistItem = WishlistItem.Create(userId, variantId);
+            SetupWishlistItem(wishlistItem);
+
+            var product = Product.Create(Guid.NewGuid(), "Active Product", "Desc", "Material", new Money(100), ProductStatus.Active);
+            var variant = ProductVariant.Create(product.Id, new Sku("SKU-1"), "Color", "Size", 0, new Money(100)); // Out of Stock
+            variant.Product = product;
+            SetupProductVariant(variantId, variant);
+
+            _cartRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<CartItem, bool>>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<CartItem, object>>[]>()))
+                .ReturnsAsync((CartItem?)null);
+
+            var result = await _service.MoveToCartAsync(variantId, CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Insufficient stock available. Maximum available stock is 0.");
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenValidAndNotInCart_AddsToCartWithQuantity1_AndDoesNotRemoveFromWishlist()
+        {
+            var userId = Guid.NewGuid();
+            var variantId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+
+            var wishlistItem = WishlistItem.Create(userId, variantId);
+            SetupWishlistItem(wishlistItem);
+
+            var variant = CreateActiveVariant(variantId);
+            SetupProductVariant(variantId, variant);
+
+            var cartItemId = Guid.NewGuid();
+            var mockCartItem = new CartItem
+            {
+                UserId = userId,
+                ProductVariantId = variantId,
+                Quantity = 1
+            };
+            var idProp = typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id));
+            idProp?.SetValue(mockCartItem, cartItemId);
+            mockCartItem.ProductVariant = variant;
+
+            _cartRepositoryMock
+                .SetupSequence(r => r.FindAsync(
+                    It.IsAny<Expression<Func<CartItem, bool>>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<CartItem, object>>[]>()))
+                .ReturnsAsync((CartItem?)null) // First FindAsync for existing cart item
+                .ReturnsAsync(mockCartItem)   // Second FindAsync after DB save (for checking ID)
+                .ReturnsAsync(mockCartItem);  // Third FindAsync for loading full details
+
+            var result = await _service.MoveToCartAsync(variantId, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.Quantity.Should().Be(1);
+            result.Value.ProductVariantId.Should().Be(variantId);
+
+            _cartRepositoryMock.Verify(r => r.AddAsync(It.Is<CartItem>(c => c.UserId == userId && c.ProductVariantId == variantId && c.Quantity == 1), It.IsAny<CancellationToken>()), Times.Once);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+            _wishlistRepositoryMock.Verify(r => r.Remove(It.IsAny<WishlistItem>()), Times.Never); // Item must remain in wishlist
+        }
+
+        [Fact]
+        public async Task MoveToCartAsync_WhenValidAndAlreadyInCart_IncrementsQuantityInCart_AndChecksStock()
+        {
+            var userId = Guid.NewGuid();
+            var variantId = Guid.NewGuid();
+            SetupCurrentUser(userId);
+
+            var wishlistItem = WishlistItem.Create(userId, variantId);
+            SetupWishlistItem(wishlistItem);
+
+            var variant = CreateActiveVariant(variantId);
+            SetupProductVariant(variantId, variant);
+
+            var existingCartItem = new CartItem
+            {
+                UserId = userId,
+                ProductVariantId = variantId,
+                Quantity = 1
+            };
+            existingCartItem.ProductVariant = variant;
+
+            _cartRepositoryMock
+                .SetupSequence(r => r.FindAsync(
+                    It.IsAny<Expression<Func<CartItem, bool>>>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<CartItem, object>>[]>()))
+                .ReturnsAsync(existingCartItem) // First FindAsync for existing cart item
+                .ReturnsAsync(existingCartItem); // Second FindAsync for loading full details
+
+            var result = await _service.MoveToCartAsync(variantId, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value!.Quantity.Should().Be(2);
+
+            _cartRepositoryMock.Verify(r => r.Update(It.Is<CartItem>(c => c.Quantity == 2)), Times.Once);
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
     }

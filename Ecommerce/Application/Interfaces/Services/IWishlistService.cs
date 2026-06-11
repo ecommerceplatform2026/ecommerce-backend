@@ -1,4 +1,5 @@
 using Application.Common.Response;
+using Application.DTOs.Cart;
 using Application.DTOs.Wishlist;
 using System;
 using System.Collections.Generic;
@@ -13,5 +14,6 @@ namespace Application.Interfaces.Services
         Task<Result<WishlistItemResponse>> AddToWishlistAsync(AddToWishlistRequest request, CancellationToken cancellationToken = default);
         Task<Result<bool>> RemoveFromWishlistAsync(Guid variantId, CancellationToken cancellationToken = default);
         Task<Result<List<WishlistItemResponse>>> MergeWishlistAsync(MergeWishlistRequest request, CancellationToken cancellationToken = default);
+        Task<Result<CartItemResponse>> MoveToCartAsync(Guid variantId, CancellationToken cancellationToken = default);
     }
 }
