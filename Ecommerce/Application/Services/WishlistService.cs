@@ -1,4 +1,5 @@
 using Application.Common.Response;
+using Application.DTOs.Cart;
 using Application.DTOs.Wishlist;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
@@ -268,6 +269,130 @@ namespace Application.Services
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return await GetWishlistAsync(null, cancellationToken);
+        }
+
+        public async Task<Result<CartItemResponse>> MoveToCartAsync(Guid variantId, CancellationToken cancellationToken = default)
+        {
+            var userResult = GetCurrentUserId();
+            if (!userResult.IsSuccess)
+            {
+                return Result<CartItemResponse>.Unauthorized(userResult.Errors.FirstOrDefault() ?? "Unauthorized");
+            }
+
+            var userId = userResult.Value;
+
+            // Check if variant is in user's wishlist
+            var wishlistItem = await _unitOfWork.GetRepository<WishlistItem>()
+                .FindAsync(
+                    w => w.UserId == userId && w.ProductVariantId == variantId,
+                    true,
+                    cancellationToken);
+
+            if (wishlistItem == null)
+            {
+                return Result<CartItemResponse>.NotFound("Product variant is not in your wishlist.");
+            }
+
+            // Retrieve product variant and check stock & status
+            var variant = await _unitOfWork.GetRepository<ProductVariant>()
+                .FindAsync(
+                    pv => pv.Id == variantId,
+                    true,
+                    cancellationToken,
+                    pv => pv.Product);
+
+            if (variant == null)
+            {
+                return Result<CartItemResponse>.NotFound("Product variant not found.");
+            }
+
+            if (variant.Product == null)
+            {
+                return Result<CartItemResponse>.NotFound("Product not found.");
+            }
+
+            if (variant.Product.Status == ProductStatus.Inactive)
+            {
+                return Result<CartItemResponse>.Failure("Product is inactive or unavailable.");
+            }
+
+            var existingCartItem = await _unitOfWork.GetRepository<CartItem>()
+                .FindAsync(
+                    ci => ci.UserId == userId && ci.ProductVariantId == variantId,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            var targetQuantity = 1 + (existingCartItem?.Quantity ?? 0);
+
+            if (variant.IsOutOfStock() || variant.Stock < targetQuantity)
+            {
+                return Result<CartItemResponse>.Failure($"Insufficient stock available. Maximum available stock is {variant.Stock}.");
+            }
+
+            if (existingCartItem != null)
+            {
+                existingCartItem.Quantity = targetQuantity;
+                _unitOfWork.GetRepository<CartItem>().Update(existingCartItem);
+            }
+            else
+            {
+                var newCartItem = new CartItem
+                {
+                    UserId = userId,
+                    ProductVariantId = variantId,
+                    Quantity = 1
+                };
+                await _unitOfWork.GetRepository<CartItem>().AddAsync(newCartItem, cancellationToken);
+            }
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var savedItemId = existingCartItem?.Id ??
+                (await _unitOfWork.GetRepository<CartItem>()
+                    .FindAsync(ci => ci.UserId == userId && ci.ProductVariantId == variantId, asNoTracking: true, cancellationToken))?.Id;
+
+            if (savedItemId == null)
+            {
+                return Result<CartItemResponse>.Failure("Failed to retrieve the updated cart item.");
+            }
+
+            var savedItem = await _unitOfWork.GetRepository<CartItem>()
+                .FindAsync(
+                    ci => ci.Id == savedItemId.Value,
+                    true,
+                    cancellationToken,
+                    ci => ci.ProductVariant!,
+                    ci => ci.ProductVariant!.Product!,
+                    ci => ci.ProductVariant!.Product!.ProductImages);
+
+            if (savedItem == null)
+            {
+                return Result<CartItemResponse>.Failure("Cart item not found after save.");
+            }
+
+            return Result<CartItemResponse>.Success(MapCartItemToResponse(savedItem));
+        }
+
+        private static CartItemResponse MapCartItemToResponse(CartItem item)
+        {
+            var variant = item.ProductVariant;
+            var product = variant?.Product;
+            var imageUrl = product?.ProductImages?.Where(img => !img.IsDeleted).OrderBy(img => img.CreatedAt).FirstOrDefault()?.ImageUrl;
+
+            return new CartItemResponse(
+                item.Id,
+                item.ProductVariantId,
+                product?.Id ?? Guid.Empty,
+                product?.Name ?? "Deleted Product",
+                imageUrl,
+                variant?.SKU?.Value ?? "N/A",
+                variant?.Color,
+                variant?.Size,
+                variant?.Price?.Amount ?? 0,
+                item.Quantity,
+                variant?.Stock ?? 0,
+                variant?.IsLowStock() ?? false,
+                variant?.IsOutOfStock() ?? true);
         }
 
         private static WishlistItemResponse MapToResponse(WishlistItem item)
