@@ -4,12 +4,12 @@ using System;
 
 namespace Domain.Events
 {
-    public class OrderCreatedDomainEvent : IDomainEvent
+    public class OrderConfirmedDomainEvent : IDomainEvent
     {
         public Order Order { get; }
         public DateTime OccurredOn { get; } = DateTime.UtcNow;
 
-        public OrderCreatedDomainEvent(Order order)
+        public OrderConfirmedDomainEvent(Order order)
         {
             Order = order ?? throw new ArgumentNullException(nameof(order));
         }

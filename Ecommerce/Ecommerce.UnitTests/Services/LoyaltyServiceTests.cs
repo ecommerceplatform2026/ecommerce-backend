@@ -1,4 +1,3 @@
-using Application.DTOs.Loyalty;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Security;
 using Application.Interfaces.Services;
@@ -27,7 +26,6 @@ namespace Ecommerce.UnitTests.Services
         private readonly Mock<IGenericRepository<LoyaltyAccount>> _accountRepositoryMock;
         private readonly Mock<IGenericRepository<LoyaltyTransaction>> _transactionRepositoryMock;
         private readonly Mock<IGenericRepository<User>> _userRepositoryMock;
-        private readonly Mock<INotificationService> _notificationServiceMock;
         private readonly LoyaltyService _service;
 
         public LoyaltyServiceTests()
@@ -39,7 +37,6 @@ namespace Ecommerce.UnitTests.Services
             _accountRepositoryMock = new Mock<IGenericRepository<LoyaltyAccount>>();
             _transactionRepositoryMock = new Mock<IGenericRepository<LoyaltyTransaction>>();
             _userRepositoryMock = new Mock<IGenericRepository<User>>();
-            _notificationServiceMock = new Mock<INotificationService>();
 
             _unitOfWorkMock
                 .Setup(u => u.GetRepository<Order>())
@@ -54,76 +51,37 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.GetRepository<User>())
                 .Returns(_userRepositoryMock.Object);
 
-            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object, _currentUserServiceMock.Object, _notificationServiceMock.Object);
+            _service = new LoyaltyService(_unitOfWorkMock.Object, _uniqueConstraintCheckerMock.Object, _currentUserServiceMock.Object);
         }
 
         [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenOrderIdIsEmpty_ReturnsFailure()
+        public async Task CreatePendingLoyaltyTransactionsAsync_WhenOrderIdIsEmpty_ReturnsFailure()
         {
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(Guid.Empty, CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(Guid.Empty, null, CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Order ID cannot be empty.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenOrderNotFound_ReturnsNotFound()
+        public async Task CreatePendingLoyaltyTransactionsAsync_WhenOrderNotFound_ReturnsNotFound()
         {
             SetupOrder(null);
 
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(Guid.NewGuid(), CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(Guid.NewGuid(), null, CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Order not found.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenOrderIsNotDelivered_ReturnsFailure()
+        public async Task CreatePendingLoyaltyTransactionsAsync_WhenFirstEarn_CreatesAccountAndPendingEarnTransaction()
         {
             var order = CreateOrderWithSubtotal(25_000, OrderStatus.Confirmed);
-            SetupOrder(order);
-
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Points can only be awarded for delivered orders.");
-            _transactionRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenSubtotalIsBelowMinimum_ReturnsZeroAndWritesNothing()
-        {
-            var order = CreateOrderWithSubtotal(9_999, OrderStatus.Delivered);
-            SetupOrder(order);
-            SetupExistingEarnTransaction(null);
-
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
-            _accountRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyAccount>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _transactionRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenFirstEarnedOrder_CreatesAccountAndPendingTransaction()
-        {
-            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Delivered);
             LoyaltyAccount? addedAccount = null;
             LoyaltyTransaction? addedTransaction = null;
 
             SetupOrder(order);
-            SetupExistingEarnTransaction(null);
             SetupAccount(null);
             _accountRepositoryMock
                 .Setup(r => r.AddAsync(It.IsAny<LoyaltyAccount>(), It.IsAny<CancellationToken>()))
@@ -137,102 +95,70 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(order.Id, null, CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
             result.Value.Should().Be(2);
             addedAccount.Should().NotBeNull();
             addedAccount!.UserId.Should().Be(order.UserId);
             addedAccount.PendingPoints.Should().Be(2);
-            addedAccount.AvailablePoints.Should().Be(0);
             addedTransaction.Should().NotBeNull();
-            addedTransaction!.LoyaltyAccountId.Should().Be(addedAccount.Id);
-            addedTransaction.OrderId.Should().Be(order.Id);
-            addedTransaction.Points.Should().Be(2);
+            addedTransaction!.Points.Should().Be(2);
             addedTransaction.Type.Should().Be(LoyaltyTransactionType.Earn);
             addedTransaction.Status.Should().Be(LoyaltyTransactionStatus.Pending);
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenAccountExists_AddsPendingPointsAndTransaction()
+        public async Task CreatePendingLoyaltyTransactionsAsync_WithRedemption_DeductsPointsAndCreatesRedeemTransaction()
         {
-            var order = CreateOrderWithSubtotal(10_000, OrderStatus.Delivered);
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Confirmed);
             var account = LoyaltyAccount.Create(order.UserId);
-            account.AddPendingPoints(3);
-            LoyaltyTransaction? addedTransaction = null;
+            account.AddAvailablePoints(500);
+            LoyaltyTransaction? addedRedeem = null;
+            LoyaltyTransaction? addedEarn = null;
 
             SetupOrder(order);
-            SetupExistingEarnTransaction(null);
             SetupAccount(account);
             _transactionRepositoryMock
                 .Setup(r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()))
-                .Callback<LoyaltyTransaction, CancellationToken>((transaction, _) => addedTransaction = transaction)
+                .Callback<LoyaltyTransaction, CancellationToken>((t, _) =>
+                {
+                    if (t.Type == LoyaltyTransactionType.Redeem) addedRedeem = t;
+                    if (t.Type == LoyaltyTransactionType.Earn) addedEarn = t;
+                })
                 .Returns(Task.CompletedTask);
             _unitOfWorkMock
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(order.Id, 300, CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(1);
-            account.PendingPoints.Should().Be(4);
-            addedTransaction.Should().NotBeNull();
-            addedTransaction!.Points.Should().Be(1);
-            _accountRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyAccount>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+            account.AvailablePoints.Should().Be(200);
+            addedRedeem.Should().NotBeNull();
+            addedRedeem!.Points.Should().Be(300);
+            addedRedeem.Type.Should().Be(LoyaltyTransactionType.Redeem);
+            addedRedeem.Status.Should().Be(LoyaltyTransactionStatus.Pending);
+            addedEarn.Should().NotBeNull();
+            addedEarn!.Points.Should().Be(10);
+            addedEarn.Type.Should().Be(LoyaltyTransactionType.Earn);
         }
 
         [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenEarnTransactionAlreadyExists_ReturnsZeroAndDoesNothing()
+        public async Task CreatePendingLoyaltyTransactionsAsync_RedemptionInsufficientBalance_ReturnsFailure()
         {
-            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Delivered);
+            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Confirmed);
             var account = LoyaltyAccount.Create(order.UserId);
-            var existingTransaction = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 2);
+            account.AddAvailablePoints(200);
 
             SetupOrder(order);
-            SetupExistingEarnTransaction(existingTransaction);
-
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
-            _accountRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyAccount>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _transactionRepositoryMock.Verify(
-                r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()),
-                Times.Never);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task AwardPendingPointsForDeliveredOrderAsync_WhenDuplicateEarnInsertRaceOccurs_ReturnsZero()
-        {
-            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Delivered);
-            var account = LoyaltyAccount.Create(order.UserId);
-            var exception = new Exception("duplicate earn transaction");
-
-            SetupOrder(order);
-            SetupExistingEarnTransaction(null);
             SetupAccount(account);
-            _transactionRepositoryMock
-                .Setup(r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()))
-                .Returns(Task.CompletedTask);
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ThrowsAsync(exception);
-            _uniqueConstraintCheckerMock
-                .Setup(c => c.IsUniqueViolation(exception, "IX_LoyaltyTransactions_OrderId_Type"))
-                .Returns(true);
 
-            var result = await _service.AwardPendingPointsForDeliveredOrderAsync(order.Id, CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(order.Id, 500, CancellationToken.None);
 
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().ContainMatch("*Insufficient points*");
         }
 
         [Fact]
@@ -245,17 +171,18 @@ namespace Ecommerce.UnitTests.Services
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Points can only be completed for completed orders.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [Fact]
-        public async Task CompletePendingTransactionsForOrderAsync_WhenCompletedOrderHasPendingTransactions_CompletesThemAndUpdatesAccountPoints()
+        public async Task CompletePendingTransactionsForOrderAsync_CompletesBothEarnAndRedeem()
         {
             var order = CreateOrderWithSubtotal(25_000, OrderStatus.Completed);
             var account = LoyaltyAccount.Create(order.UserId);
             account.AddPendingPoints(2);
-            var transaction = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 2);
-            order.LoyaltyTransactions.Add(transaction);
+            var earnTx = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 2);
+            var redeemTx = LoyaltyTransaction.CreatePendingRedeem(account.Id, order.Id, 300);
+            order.LoyaltyTransactions.Add(earnTx);
+            order.LoyaltyTransactions.Add(redeemTx);
 
             SetupOrder(order);
             _accountRepositoryMock
@@ -263,7 +190,7 @@ namespace Ecommerce.UnitTests.Services
                     It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
                     false,
                     It.IsAny<CancellationToken>(),
-                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>() ))
+                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
                 .ReturnsAsync(account);
             _unitOfWorkMock
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
@@ -272,374 +199,82 @@ namespace Ecommerce.UnitTests.Services
             var result = await _service.CompletePendingTransactionsForOrderAsync(order.Id, CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(2);
-            transaction.Status.Should().Be(LoyaltyTransactionStatus.Completed);
+            result.Value.Should().Be(302);
+            earnTx.Status.Should().Be(LoyaltyTransactionStatus.Completed);
+            redeemTx.Status.Should().Be(LoyaltyTransactionStatus.Completed);
             account.PendingPoints.Should().Be(0);
             account.AvailablePoints.Should().Be(2);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_ValidRequest_DeductsAndCreatesTransaction()
+        public async Task CancelPendingTransactionsForOrderAsync_CancelsEarnAndRefundsRedeem()
         {
-            var userId = Guid.NewGuid();
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Pending);
-            var account = LoyaltyAccount.Create(userId);
-            account.AddAvailablePoints(500);
-            LoyaltyTransaction? addedTransaction = null;
+            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Cancelled);
+            var account = LoyaltyAccount.Create(order.UserId);
+            account.AddPendingPoints(2);
+            account.AddAvailablePoints(100);
+            var earnTx = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 2);
+            var redeemTx = LoyaltyTransaction.CreatePendingRedeem(account.Id, order.Id, 300);
+            order.LoyaltyTransactions.Add(earnTx);
+            order.LoyaltyTransactions.Add(redeemTx);
 
-            SetupCurrentUser(userId);
-            SetupAccount(account);
             SetupOrder(order);
+            _accountRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
+                .ReturnsAsync(account);
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.CancelPendingTransactionsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(302);
+            earnTx.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+            redeemTx.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
+            account.AvailablePoints.Should().Be(400);
+        }
+
+        [Fact]
+        public async Task CancelPendingTransactionsForOrderAsync_NoPendingTransactions_ReturnZero()
+        {
+            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Cancelled);
+            SetupOrder(order);
+
+            var result = await _service.CancelPendingTransactionsForOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task CreatePendingLoyaltyTransactionsAsync_DuplicateEarnInsert_ReturnsSuccess()
+        {
+            var order = CreateOrderWithSubtotal(25_000, OrderStatus.Confirmed);
+            var account = LoyaltyAccount.Create(order.UserId);
+            var exception = new Exception("duplicate earn transaction");
+
+            SetupOrder(order);
+            SetupAccount(account);
             _transactionRepositoryMock
                 .Setup(r => r.AddAsync(It.IsAny<LoyaltyTransaction>(), It.IsAny<CancellationToken>()))
-                .Callback<LoyaltyTransaction, CancellationToken>((t, _) => addedTransaction = t)
                 .Returns(Task.CompletedTask);
             _unitOfWorkMock
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
+                .ThrowsAsync(exception);
+            _uniqueConstraintCheckerMock
+                .Setup(c => c.IsUniqueViolation(exception, "IX_LoyaltyTransactions_OrderId_Type"))
+                .Returns(true);
 
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(order.Id, 300), CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().NotBeNull();
-            result.Value?.RedeemedPoints.Should().Be(300);
-            result.Value?.DiscountAmount.Should().Be(30_000);
-            result.Value?.RemainingBalance.Should().Be(200);
-            account.AvailablePoints.Should().Be(200);
-            order.DiscountAmount.Should().Be(30_000);
-            addedTransaction.Should().NotBeNull();
-            addedTransaction!.Points.Should().Be(300);
-            addedTransaction.Type.Should().Be(LoyaltyTransactionType.Redeem);
-            addedTransaction.Status.Should().Be(LoyaltyTransactionStatus.Pending);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
-
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_PointsNotMultipleOf100_ReturnsFailure()
-        {
-            var userId = Guid.NewGuid();
-            SetupCurrentUser(userId);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(Guid.NewGuid(), 250), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Redeemed points must be in multiples of 100.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_InsufficientBalance_ReturnsFailure()
-        {
-            var userId = Guid.NewGuid();
-            var account = LoyaltyAccount.Create(userId);
-            account.AddAvailablePoints(200);
-
-            SetupCurrentUser(userId);
-            SetupAccount(account);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(Guid.NewGuid(), 500), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().ContainMatch("*Insufficient points*");
-            _accountRepositoryMock.Verify(r => r.FindAsync(
-                It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
-                false, It.IsAny<CancellationToken>(),
-                It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()), Times.Once);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_ExcessivePoints_CappedToMinimumOrder()
-        {
-            var userId = Guid.NewGuid();
-            var order = CreateOrderWithSubtotal(50_000, OrderStatus.Pending);
-            var account = LoyaltyAccount.Create(userId);
-            account.AddAvailablePoints(1000);
-
-            SetupCurrentUser(userId);
-            SetupAccount(account);
-            SetupOrder(order);
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(order.Id, 800), CancellationToken.None);
+            var result = await _service.CreatePendingLoyaltyTransactionsAsync(order.Id, null, CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
-            result.Value?.RedeemedPoints.Should().Be(400);
-            result.Value?.DiscountAmount.Should().Be(40_000);
-            result.Value?.RemainingBalance.Should().Be(600);
-            account.AvailablePoints.Should().Be(600);
-            order.DiscountAmount.Should().Be(40_000);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
 
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_OrderNotFound_ReturnsNotFound()
-        {
-            var userId = Guid.NewGuid();
-            var account = LoyaltyAccount.Create(userId);
-            account.AddAvailablePoints(500);
-
-            SetupCurrentUser(userId);
-            SetupAccount(account);
-            SetupOrder(null);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(Guid.NewGuid(), 300), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Order not found.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_AccountNotFound_ReturnsFailure()
-        {
-            var userId = Guid.NewGuid();
-            SetupCurrentUser(userId);
-            SetupAccount(null);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(Guid.NewGuid(), 300), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().ContainMatch("*Loyalty account not found*");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RedeemPointsAtCheckoutAsync_WhenMinimumOrderCannotBeMet_ReturnsFailure()
-        {
-            var userId = Guid.NewGuid();
-            var order = CreateOrderWithSubtotal(15_000, OrderStatus.Pending);
-            var account = LoyaltyAccount.Create(userId);
-            account.AddAvailablePoints(500);
-
-            SetupCurrentUser(userId);
-            SetupAccount(account);
-            SetupOrder(order);
-
-            var result = await _service.RedeemPointsAtCheckoutAsync(
-                new RedeemPointsRequest(order.Id, 200), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().ContainMatch("*Redemption would reduce order total below minimum*");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task CompleteRedeemedPointsForOrderAsync_DeliveredOrder_CompletesTransactions()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
-            var transaction = LoyaltyTransaction.CreatePendingRedeem(Guid.NewGuid(), order.Id, 300);
-            order.LoyaltyTransactions.Add(transaction);
-
-            SetupOrder(order);
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.CompleteRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(300);
-            transaction.Status.Should().Be(LoyaltyTransactionStatus.Completed);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
-
-        [Fact]
-        public async Task CompleteRedeemedPointsForOrderAsync_NotDelivered_ReturnsFailure()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Confirmed);
-            SetupOrder(order);
-
-            var result = await _service.CompleteRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Redeemed points can only be finalized for delivered orders.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task CompleteRedeemedPointsForOrderAsync_NoRedeemTransactions_NoOp()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
-            SetupOrder(order);
-
-            var result = await _service.CompleteRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RefundRedeemedPointsForOrderAsync_EmptyOrderId_ReturnsFailure()
-        {
-            var result = await _service.RefundRedeemedPointsForOrderAsync(Guid.Empty, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Order ID cannot be empty.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RefundRedeemedPointsForOrderAsync_OrderNotFound_ReturnsNotFound()
-        {
-            SetupOrder(null);
-
-            var result = await _service.RefundRedeemedPointsForOrderAsync(Guid.NewGuid(), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Order not found.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RefundRedeemedPointsForOrderAsync_OrderNotCancelled_ReturnsFailure()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
-            SetupOrder(order);
-
-            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Redeemed points can only be refunded for cancelled orders.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task RefundRedeemedPointsForOrderAsync_CancelledOrder_RefundsAndCancelsRedeemTx()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Cancelled);
-            var account = LoyaltyAccount.Create(Guid.NewGuid());
-            account.AddAvailablePoints(100);
-            var transaction = LoyaltyTransaction.CreatePendingRedeem(account.Id, order.Id, 300);
-            order.LoyaltyTransactions.Add(transaction);
-
-            SetupOrder(order);
-            _accountRepositoryMock
-                .Setup(r => r.FindAsync(
-                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
-                    false,
-                    It.IsAny<CancellationToken>(),
-                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
-                .ReturnsAsync(account);
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(300);
-            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
-            account.AvailablePoints.Should().Be(400);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
-
-        [Fact]
-        public async Task RefundRedeemedPointsForOrderAsync_NoRedeemTransactions_NoOp()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Cancelled);
-            SetupOrder(order);
-
-            var result = await _service.RefundRedeemedPointsForOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task ReverseEarnedPointsForReturnedOrderAsync_EmptyOrderId_ReturnsFailure()
-        {
-            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(Guid.Empty, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Order ID cannot be empty.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task ReverseEarnedPointsForReturnedOrderAsync_OrderNotFound_ReturnsNotFound()
-        {
-            SetupOrder(null);
-
-            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(Guid.NewGuid(), CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Order not found.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task ReverseEarnedPointsForReturnedOrderAsync_OrderNotReturned_ReturnsFailure()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Delivered);
-            SetupOrder(order);
-
-            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeFalse();
-            result.Errors.Should().Contain("Earned points can only be reversed for returned orders.");
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        [Fact]
-        public async Task ReverseEarnedPointsForReturnedOrderAsync_ReturnedOrder_CancelsEarnAndReversesPoints()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Returned);
-            var account = LoyaltyAccount.Create(Guid.NewGuid());
-            account.AddAvailablePoints(500);
-            var transaction = LoyaltyTransaction.CreatePendingEarn(account.Id, order.Id, 300);
-            order.LoyaltyTransactions.Add(transaction);
-
-            SetupOrder(order);
-            _accountRepositoryMock
-                .Setup(r => r.FindAsync(
-                    It.IsAny<Expression<Func<LoyaltyAccount, bool>>>(),
-                    false,
-                    It.IsAny<CancellationToken>(),
-                    It.IsAny<Expression<Func<LoyaltyAccount, object>>[]>()))
-                .ReturnsAsync(account);
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(300);
-            transaction.Status.Should().Be(LoyaltyTransactionStatus.Cancelled);
-            account.AvailablePoints.Should().Be(200);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
-        }
-
-        [Fact]
-        public async Task ReverseEarnedPointsForReturnedOrderAsync_NoEarnTransaction_NoOp()
-        {
-            var order = CreateOrderWithSubtotal(100_000, OrderStatus.Returned);
-            SetupOrder(order);
-
-            var result = await _service.ReverseEarnedPointsForReturnedOrderAsync(order.Id, CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-            result.Value.Should().Be(0);
-            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
-        }
-
-        private void SetupCurrentUser(Guid userId)
-        {
-            _currentUserServiceMock
-                .Setup(s => s.GetUserIdOrNull())
-                .Returns(userId.ToString());
+            result.Value.Should().Be(2);
         }
 
         private void SetupOrder(Order? order)
@@ -651,17 +286,6 @@ namespace Ecommerce.UnitTests.Services
                     It.IsAny<CancellationToken>(),
                     It.IsAny<Expression<Func<Order, object>>[]>()))
                 .ReturnsAsync(order);
-        }
-
-        private void SetupExistingEarnTransaction(LoyaltyTransaction? transaction)
-        {
-            _transactionRepositoryMock
-                .Setup(r => r.FindAsync(
-                    It.IsAny<Expression<Func<LoyaltyTransaction, bool>>>(),
-                    true,
-                    It.IsAny<CancellationToken>(),
-                    It.IsAny<Expression<Func<LoyaltyTransaction, object>>[]>()))
-                .ReturnsAsync(transaction);
         }
 
         private void SetupAccount(LoyaltyAccount? account)

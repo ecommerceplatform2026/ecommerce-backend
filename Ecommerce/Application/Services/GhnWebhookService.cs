@@ -109,20 +109,22 @@ namespace Application.Services
             switch (newStatus)
             {
                 case DeliveryStatus.Created:
+                    order.MarkAsProcessing();
                     break;
 
                 case DeliveryStatus.PickedUp:
                     delivery.MarkPickedUp();
+                    order.MarkAsProcessing();
                     break;
 
                 case DeliveryStatus.InTransit:
                     delivery.MarkInTransit();
+                    order.MarkAsProcessing();
                     break;
 
                 case DeliveryStatus.OutForDelivery:
                     delivery.MarkOutForDelivery();
-                    if (order.Status != OrderStatus.Shipping)
-                        order.MarkAsShipping();
+                    order.MarkAsShipping();
                     break;
 
                 case DeliveryStatus.Delivered:
@@ -136,14 +138,17 @@ namespace Application.Services
 
                 case DeliveryStatus.Cancelled:
                     delivery.MarkCancelled();
+                    order.MarkAsCancelled();
                     break;
 
                 case DeliveryStatus.Returned:
                     delivery.MarkReturned();
+                    order.MarkAsReturned();
                     break;
 
                 case DeliveryStatus.Exception:
                     delivery.MarkException(webhook.Reason);
+                    // order.MarkAsException();
                     break;
 
                 default:

@@ -1,4 +1,7 @@
+using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
+using Domain.Entities;
+using Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -66,21 +69,93 @@ public sealed class PointsExpiryBackgroundService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
 
-        var loyaltyService = scope.ServiceProvider.GetRequiredService<ILoyaltyService>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
-        var result = await loyaltyService.ExpireInactivePointsAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        var twelveMonthsAgo = now.AddMonths(-12);
+        var elevenMonthsAgo = now.AddMonths(-11);
 
-        if (result.IsSuccess)
+        var accounts = (await unitOfWork.GetRepository<LoyaltyAccount>()
+            .GetAllAsync(a => !a.IsDeleted && a.AvailablePoints > 0, cancellationToken))
+            .ToList();
+
+        if (accounts.Count == 0)
         {
-            _logger.LogInformation(
-                "Successfully expired {Count} points across all inactive accounts.",
-                result.Value);
+            _logger.LogInformation("No accounts with points to expire.");
+            return;
         }
-        else
+
+        var userIds = accounts.Select(a => a.UserId).ToList();
+        var orders = await unitOfWork.GetRepository<Order>().GetAllAsync(
+            o => userIds.Contains(o.UserId) && o.Status == OrderStatus.Delivered && !o.IsDeleted,
+            cancellationToken);
+
+        var lastOrderDates = orders
+            .GroupBy(o => o.UserId)
+            .ToDictionary(g => g.Key, g => g.Max(o => o.CreatedAt));
+
+        var accountIds = accounts.Select(a => a.Id).ToList();
+        var existingExpiredTxs = await unitOfWork.GetRepository<LoyaltyTransaction>().GetAllAsync(
+            t => accountIds.Contains(t.LoyaltyAccountId) && t.Type == LoyaltyTransactionType.Expired,
+            cancellationToken);
+
+        var expiredTxMap = existingExpiredTxs
+            .GroupBy(t => t.LoyaltyAccountId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var txRepo = unitOfWork.GetRepository<LoyaltyTransaction>();
+        var totalExpired = 0;
+
+        foreach (var account in accounts)
         {
-            _logger.LogWarning(
-                "Points expiry completed with errors: {Errors}.",
-                string.Join("; ", result.Errors));
+            if (!lastOrderDates.TryGetValue(account.UserId, out var lastOrderDate))
+                continue;
+
+            if (lastOrderDate >= elevenMonthsAgo)
+                continue;
+
+            var existingExpired = expiredTxMap.GetValueOrDefault(account.Id) ?? new List<LoyaltyTransaction>();
+
+            if (lastOrderDate < twelveMonthsAgo)
+            {
+                if (existingExpired.Any(t => t.Status == LoyaltyTransactionStatus.Completed))
+                    continue;
+
+                var pending = existingExpired.FirstOrDefault(t => t.Status == LoyaltyTransactionStatus.Pending);
+                if (pending != null)
+                {
+                    pending.Complete();
+                    account.ExpirePoints(pending.Points);
+                    totalExpired += pending.Points;
+                }
+                else
+                {
+                    var tx = LoyaltyTransaction.CreateExpired(account.Id, account.AvailablePoints);
+                    await txRepo.AddAsync(tx, cancellationToken);
+                    account.ExpirePoints(account.AvailablePoints);
+                    totalExpired += tx.Points;
+                }
+            }
+            else
+            {
+                var hasRecentWarning = existingExpired.Any(t => t.CreatedAt >= now.AddDays(-30));
+                if (hasRecentWarning)
+                    continue;
+
+                var pendingTx = LoyaltyTransaction.CreatePendingExpired(account.Id, account.AvailablePoints);
+                await txRepo.AddAsync(pendingTx, cancellationToken);
+
+                var expiryDate = lastOrderDate.AddMonths(12);
+                await notificationService.SendPointsExpiryWarningAsync(
+                    account.UserId, account.AvailablePoints, expiryDate);
+            }
         }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Successfully expired {Count} points across all inactive accounts.",
+            totalExpired);
     }
 }

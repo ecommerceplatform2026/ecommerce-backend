@@ -16,14 +16,12 @@ namespace Application.Events
             _loyaltyService = loyaltyService ?? throw new ArgumentNullException(nameof(loyaltyService));
         }
 
-        public Task HandleAsync(OrderCompletedDomainEvent domainEvent, CancellationToken cancellationToken)
+        public async Task HandleAsync(OrderCompletedDomainEvent domainEvent, CancellationToken cancellationToken)
         {
             if (domainEvent == null)
-            {
                 throw new ArgumentNullException(nameof(domainEvent));
-            }
 
-            return _loyaltyService.CompletePendingTransactionsForOrderAsync(domainEvent.Order.Id, cancellationToken);
+            await _loyaltyService.CompletePendingTransactionsForOrderAsync(domainEvent.Order.Id, cancellationToken);
         }
     }
 }

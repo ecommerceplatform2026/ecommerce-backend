@@ -1,7 +1,6 @@
 using Application.Interfaces.Repositories.Base;
 using Domain.Entities;
 using Domain.Enums;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -84,25 +83,28 @@ public sealed class DeliveredOrdersCompletionBackgroundService
         var unitOfWork =
             scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-        var query = unitOfWork
+        var deliveredOrders = await unitOfWork
             .GetRepository<Order>()
-            .GetQueryable()
-            .Where(o =>
-                o.Status == OrderStatus.Delivered &&
-                !o.IsDeleted);
+            .GetAllTrackedAsync(
+                o => o.Status == OrderStatus.Delivered && !o.IsDeleted && o.Delivery!.CreatedAt < DateTime.UtcNow.AddDays(-7),
+                cancellationToken);
 
-        var affectedRows = await query.ExecuteUpdateAsync(
-            setters => setters
-                .SetProperty(
-                    o => o.Status,
-                    OrderStatus.Completed)
-                .SetProperty(
-                    o => o.UpdatedAt,
-                    DateTime.UtcNow),
-            cancellationToken);
+        if (deliveredOrders.Count == 0)
+        {
+            _logger.LogInformation("No delivered orders to complete.");
+            return;
+        }
+
+        foreach (var order in deliveredOrders)
+        {
+            order.MarkAsCompleted();
+            unitOfWork.GetRepository<Order>().Update(order);
+        }
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Marked {Count} delivered orders as completed.",
-            affectedRows);
+            deliveredOrders.Count);
     }
 }
