@@ -5,5 +5,6 @@
   <Project Path="Presentation/Presentation.csproj" />
   <Project Path="Ecommerce.UnitTests/Ecommerce.UnitTests.csproj" />
   <Project Path="Ecommerce.IntegrationTests/Ecommerce.IntegrationTests.csproj" />
+  <Project Path="Ecommerce.PerformanceTests/Ecommerce.PerformanceTests.csproj" />
 </Solution>
 

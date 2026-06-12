@@ -180,52 +180,55 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddApplicationServices();
-builder.Services.AddRateLimiter(options =>
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    options.AddPolicy("auth-limiter", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
-            factory: partition => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 5,
-                QueueLimit = 0,
-                Window = TimeSpan.FromSeconds(60)
-            }));
-
-    options.AddPolicy("checkout-limiter", httpContext =>
+    builder.Services.AddRateLimiter(options =>
     {
-        var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-            ?? httpContext.Connection.RemoteIpAddress?.ToString() 
-            ?? "anonymous";
+        options.AddPolicy("auth-limiter", httpContext =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+                factory: partition => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = 5,
+                    QueueLimit = 0,
+                    Window = TimeSpan.FromSeconds(60)
+                }));
 
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: userId,
-            factory: partition => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 10,
-                QueueLimit = 0,
-                Window = TimeSpan.FromSeconds(60)
-            });
-    });
-
-    options.OnRejected = async (context, token) =>
-    {
-        context.HttpContext.Response.ContentType = "application/json";
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        
-        var response = new ApiResponse<object>
+        options.AddPolicy("checkout-limiter", httpContext =>
         {
-            Success = false,
-            Data = null,
-            Errors = new List<string> { "Too many requests. Please try again later." }
+            var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                ?? httpContext.Connection.RemoteIpAddress?.ToString() 
+                ?? "anonymous";
+
+            return RateLimitPartition.GetFixedWindowLimiter(
+                partitionKey: userId,
+                factory: partition => new FixedWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = 10,
+                    QueueLimit = 0,
+                    Window = TimeSpan.FromSeconds(60)
+                });
+        });
+
+        options.OnRejected = async (context, token) =>
+        {
+            context.HttpContext.Response.ContentType = "application/json";
+            context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            
+            var response = new ApiResponse<object>
+            {
+                Success = false,
+                Data = null,
+                Errors = new List<string> { "Too many requests. Please try again later." }
+            };
+            
+            var json = System.Text.Json.JsonSerializer.Serialize(response);
+            await context.HttpContext.Response.WriteAsync(json, cancellationToken: token);
         };
-        
-        var json = System.Text.Json.JsonSerializer.Serialize(response);
-        await context.HttpContext.Response.WriteAsync(json, cancellationToken: token);
-    };
-});
+    });
+}
 
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
@@ -244,7 +247,10 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
-app.UseRateLimiter();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseRateLimiter();
+}
 app.UseAuthorization();
 
 app.MapControllers();
