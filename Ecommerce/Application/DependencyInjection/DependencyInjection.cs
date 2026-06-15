@@ -24,6 +24,7 @@ namespace Application.DependencyInjection
             services.AddScoped<IShippingService, ShippingService>();
             services.AddScoped<IShippingWebhookHandler, GhnWebhookService>();
             services.AddScoped<IWishlistService, WishlistService>();
+            services.AddScoped<IRecommendationService, RecommendationService>();
 
             return services;
         }

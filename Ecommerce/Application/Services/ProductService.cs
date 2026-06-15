@@ -26,17 +26,20 @@ namespace Application.Services
         private readonly IProductImageStorage _productImageStorage;
         private readonly ICacheService _cacheService;
         private readonly IProductRepository _productRepository;
+        private readonly IRecommendationService _recommendationService;
 
         public ProductService(
             IUnitOfWork unitOfWork,
             IProductImageStorage productImageStorage,
             ICacheService cacheService,
-            IProductRepository productRepository)
+            IProductRepository productRepository,
+            IRecommendationService recommendationService)
         {
             _unitOfWork = unitOfWork;
             _productImageStorage = productImageStorage;
             _cacheService = cacheService;
             _productRepository = productRepository;
+            _recommendationService = recommendationService;
         }
 
         public async Task<Result<ProductResponse>> GetProductByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -86,6 +89,9 @@ namespace Application.Services
 
             if (product == null)
                 return Result<ProductDetailResponse>.NotFound("Product not found.");
+
+            // Track view asynchronously
+            await _recommendationService.TrackProductViewAsync(id, cancellationToken);
 
             return Result<ProductDetailResponse>.Success(product.ToProductDetailResponse());
         }

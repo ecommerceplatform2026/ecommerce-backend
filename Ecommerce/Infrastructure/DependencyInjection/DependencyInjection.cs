@@ -81,6 +81,7 @@ namespace Infrastructure.DependencyInjection
             services.AddHostedService<PaymentTimeoutBackgroundService>();
             services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
             services.AddHostedService<PointsExpiryBackgroundService>();
+            services.AddHostedService<ViewHistoryCleanupBackgroundService>();
 
             // Domain Event Publisher & Dynamic Handlers Scanning
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
