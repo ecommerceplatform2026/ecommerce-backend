@@ -24,6 +24,7 @@ namespace Domain.Entities
         public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
         public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
         public virtual ICollection<WishlistItem> WishlistItems { get; set; } = new List<WishlistItem>();
+        public virtual ICollection<RecentlyViewedProduct> RecentlyViewedProducts { get; set; } = new List<RecentlyViewedProduct>();
         public virtual LoyaltyAccount? LoyaltyAccount { get; set; }
 
         public static User Create(string fullName, string email, string passwordHash)
