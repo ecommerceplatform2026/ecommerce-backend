@@ -22,5 +22,14 @@ namespace Infrastructure.Services
             return user.FindFirstValue("sub")
                 ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         }
+
+        public string? GetUserRoleOrNull()
+        {
+            var user = _httpContextAccessor.HttpContext?.User;
+            if (user == null || user.Identity?.IsAuthenticated != true)
+                return null;
+
+            return user.FindFirstValue(ClaimTypes.Role);
+        }
     }
 }
