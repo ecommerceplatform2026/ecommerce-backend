@@ -11,5 +11,7 @@ namespace Application.DTOs.Review
         string? Title,
         string? Comment,
         ReviewStatus Status,
-        DateTime CreatedAt);
+        DateTime CreatedAt,
+        string UserName,
+        string? FullName);
 }

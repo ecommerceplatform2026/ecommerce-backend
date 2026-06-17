@@ -16,7 +16,9 @@ namespace Application.Mappings
                 review.Title,
                 review.Comment,
                 review.Status,
-                review.CreatedAt);
+                review.CreatedAt,
+                review.User?.FullName ?? "Unknown",
+                review.User?.FullName);
         }
     }
 }

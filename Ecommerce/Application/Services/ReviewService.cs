@@ -141,7 +141,8 @@ namespace Application.Services
                 filter: r => r.ProductId == productId && r.Status == ReviewStatus.Approved,
                 orderBy: r => r.CreatedAt,
                 isDescending: true,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                r => r.User!);
 
             var responses = items.Select(r => r.ToReviewResponse()).ToList();
 
