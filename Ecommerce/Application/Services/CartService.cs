@@ -96,19 +96,30 @@ namespace Application.Services
             }
 
             var existingCartItem = await _unitOfWork.GetRepository<CartItem>()
-                .FindAsync(ci => ci.UserId == userId && ci.ProductVariantId == request.ProductVariantId, asNoTracking: false, cancellationToken);
+                .FindIgnoreQueryFiltersAsync(ci => ci.UserId == userId && ci.ProductVariantId == request.ProductVariantId, false, cancellationToken);
 
-            var targetQuantity = request.Quantity + (existingCartItem?.Quantity ?? 0);
+            var isRestoring = existingCartItem != null && existingCartItem.IsDeleted;
+            var targetQuantity = request.Quantity + (isRestoring ? 0 : (existingCartItem?.Quantity ?? 0));
 
             if (variant.IsOutOfStock() || variant.Stock < targetQuantity)
             {
                 return Result<CartItemResponse>.Failure($"Insufficient stock available. Maximum available stock is {variant.Stock}.");
             }
 
+            CartItem savedCartItem;
             if (existingCartItem != null)
             {
-                existingCartItem.Quantity = targetQuantity;
+                if (isRestoring)
+                {
+                    existingCartItem.Restore();
+                    existingCartItem.Quantity = request.Quantity;
+                }
+                else
+                {
+                    existingCartItem.Quantity = targetQuantity;
+                }
                 _unitOfWork.GetRepository<CartItem>().Update(existingCartItem);
+                savedCartItem = existingCartItem;
             }
             else
             {
@@ -119,22 +130,16 @@ namespace Application.Services
                     Quantity = request.Quantity
                 };
                 await _unitOfWork.GetRepository<CartItem>().AddAsync(newCartItem, cancellationToken);
+                savedCartItem = newCartItem;
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            var savedItemId = existingCartItem?.Id ??
-                (await _unitOfWork.GetRepository<CartItem>()
-                    .FindAsync(ci => ci.UserId == userId && ci.ProductVariantId == request.ProductVariantId, asNoTracking: true, cancellationToken))?.Id;
-
-            if (savedItemId == null)
-            {
-                return Result<CartItemResponse>.Failure("Failed to retrieve the updated cart item.");
-            }
+            var savedItemId = savedCartItem.Id;
 
             var savedItem = await _unitOfWork.GetRepository<CartItem>()
                 .FindAsync(
-                    ci => ci.Id == savedItemId.Value,
+                    ci => ci.Id == savedItemId,
                     true,
                     cancellationToken,
                     ci => ci.ProductVariant!,

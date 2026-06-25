@@ -100,18 +100,30 @@ namespace Infrastructure.Repositories
                 .ToList();
 
             // 6. Low stock variants monitoring (current real-time snapshot)
-            var lowStockVariants = await _context.Set<ProductVariant>()
+            var lowStockVariantsData = await _context.Set<ProductVariant>()
                 .Include(pv => pv.Product)
                 .Where(pv => !pv.IsDeleted && pv.Product != null && pv.Stock <= pv.LowStockThreshold)
+                .Select(pv => new {
+                    pv.Id,
+                    pv.SKU,
+                    ProductName = pv.Product.Name,
+                    pv.Color,
+                    pv.Size,
+                    pv.Stock,
+                    pv.LowStockThreshold
+                })
+                .ToListAsync(cancellationToken);
+
+            var lowStockVariants = lowStockVariantsData
                 .Select(pv => new LowStockVariantResponse(
                     pv.Id,
                     pv.SKU.Value,
-                    pv.Product.Name,
+                    pv.ProductName,
                     pv.Color,
                     pv.Size,
                     pv.Stock,
                     pv.LowStockThreshold))
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             return new DashboardSummaryResponse(
                 totalOrders,

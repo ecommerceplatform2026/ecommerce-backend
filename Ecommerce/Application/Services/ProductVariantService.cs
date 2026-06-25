@@ -84,8 +84,11 @@ namespace Application.Services
                 return Result<ProductVariantResponse>.NotFound("Product not found.");
 
             var normalizedSku = request.SKU?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedSku))
+                return Result<ProductVariantResponse>.Failure("SKU value cannot be null, empty, or whitespace.");
+
             var skuExists = await _unitOfWork.GetRepository<ProductVariant>().TotalAsync(
-                v => v.SKU.Value == normalizedSku.ToUpperInvariant() && !v.IsDeleted) > 0;
+                v => v.SKU == new Sku(normalizedSku) && !v.IsDeleted) > 0;
 
             if (skuExists)
                 return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use by another product.");
@@ -93,20 +96,23 @@ namespace Application.Services
             try
             {
                 product.AddVariant(normalizedSku, request.Color, request.Size, request.Stock, new Money(request.Price, "VND"), request.LowStockThreshold);
+                
+                var newVariant = product.ProductVariants.First(v => v.SKU == new Sku(normalizedSku) && !v.IsDeleted);
+                await _unitOfWork.GetRepository<ProductVariant>().AddAsync(newVariant, cancellationToken);
+
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                 await InvalidateProductCacheAsync(productId, cancellationToken);
 
-                var newVariant = product.ProductVariants.First(v => v.SKU.Value.Equals(normalizedSku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted);
                 return Result<ProductVariantResponse>.Success(newVariant.ToProductVariantResponse());
             }
             catch (InvalidOperationException ex)
             {
                 return Result<ProductVariantResponse>.Failure(ex.Message);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use.");
+                return Result<ProductVariantResponse>.Failure($"Error adding variant: {ex.Message}");
             }
         }
 
@@ -122,8 +128,11 @@ namespace Application.Services
                 return Result<ProductVariantResponse>.NotFound("Product not found.");
 
             var normalizedSku = request.SKU?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(normalizedSku))
+                return Result<ProductVariantResponse>.Failure("SKU value cannot be null, empty, or whitespace.");
+
             var skuExists = await _unitOfWork.GetRepository<ProductVariant>().TotalAsync(
-                v => v.Id != variantId && v.SKU.Value == normalizedSku.ToUpperInvariant() && !v.IsDeleted) > 0;
+                v => v.Id != variantId && v.SKU == new Sku(normalizedSku) && !v.IsDeleted) > 0;
 
             if (skuExists)
                 return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use by another product.");
@@ -146,9 +155,9 @@ namespace Application.Services
             {
                 return Result<ProductVariantResponse>.Failure(ex.Message);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                return Result<ProductVariantResponse>.Failure($"SKU '{normalizedSku}' is already in use.");
+                return Result<ProductVariantResponse>.Failure($"Error updating variant: {ex.Message}");
             }
         }
 
