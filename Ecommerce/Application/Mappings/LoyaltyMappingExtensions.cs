@@ -28,15 +28,16 @@ namespace Application.Mappings
 
         public static GetLoyaltyTransactionResponse ToLoyaltyTransactionResponse(this LoyaltyTransaction transaction)
         {
-            var displayPoints = transaction.Type == LoyaltyTransactionType.Earn 
-                ? transaction.Points 
+            var displayPoints = transaction.Type == LoyaltyTransactionType.Earn
+                ? transaction.Points
                 : -transaction.Points;
 
             return new GetLoyaltyTransactionResponse(
                 Id: transaction.Id,
                 Date: transaction.CreatedAt,
-                Type: transaction.Type.ToString(),
+                Type: transaction.Type,
                 Points: displayPoints,
+                Status: transaction.Status,
                 OrderId: transaction.OrderId?.ToString(),
                 Description: transaction.Description);
         }

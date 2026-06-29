@@ -51,7 +51,8 @@ namespace Application.Services
                     isDescending: true,
                     cancellationToken: cancellationToken,
                     o => o.OrderItems,
-                    o => o.Delivery!);
+                    o => o.Delivery!,
+                    o => o.LoyaltyTransactions!);
 
             var result = new PagedResult<OrderResponse>
             {
@@ -76,7 +77,8 @@ namespace Application.Services
                     asNoTracking: false,
                     cancellationToken: cancellationToken,
                     o => o.OrderItems,
-                    o => o.Delivery!);
+                    o => o.Delivery!,
+                    o => o.LoyaltyTransactions!);
 
             if (order == null)
                 return Result<OrderResponse>.NotFound("Order not found.");
