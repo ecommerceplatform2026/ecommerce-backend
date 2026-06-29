@@ -2,6 +2,6 @@ namespace Application.DTOs.Loyalty
 {
     public sealed record GetLoyaltyBalanceResponse(
         int Balance,
-        int DiscountEquivalent,
+        long DiscountEquivalent,
         DateTime LastUpdated);
 }

@@ -8,7 +8,7 @@ namespace Application.Interfaces.Services
 {
     public interface ILoyaltyService
     {
-        static int PointEarnRate { get; }
+        static double PointEarnRate { get; }
         static int PointRedeemRate { get; }
         static int PointPerRedeemUnit { get; }
 

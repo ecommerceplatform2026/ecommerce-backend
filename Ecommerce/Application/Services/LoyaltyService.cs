@@ -16,8 +16,8 @@ namespace Application.Services
 {
     public sealed class LoyaltyService : ILoyaltyService
     {
-        public static int PointEarnRate => 1 / 10_000;    // 10,000 VND spent = 1 point
-        public static int PointRedeemRate => 100;         // 1 point = 100 VND discount
+        public static double PointEarnRate => 1.0 / 10_000.0;    // 10,000 VND spent = 1 point
+        public static double PointRedeemRate => 100.0;         // 1 point = 100 VND discount
         public static int PointPerRedeemUnit => 100;      // Points must be redeemed in multiples of 100
 
         private const string EarnTransactionUniqueIndex = "IX_LoyaltyTransactions_OrderId_Type";
@@ -248,9 +248,9 @@ namespace Application.Services
         /// <param name="points">The number of points to redeem.</param>
         /// <param name="redeemRate">The redeem rate: VND discount value per 1 point. Default is 100 VND/point.</param>
         /// <returns>The total discount value in VND.</returns>
-        public static int CalculateRedeemValue(int points)
+        public static long CalculateRedeemValue(int points)
         {
-            return points * PointRedeemRate;
+            return (long)(points * PointRedeemRate);
         }
 
         public static void ValidateRedemptionPoints(int points)
@@ -291,7 +291,7 @@ namespace Application.Services
                 totalBalance = 0;
             }
 
-            var vndEquivalent = totalBalance / PointEarnRate;
+            var vndEquivalent = (long)(totalBalance * PointRedeemRate);
 
             return Result<GetLoyaltyBalanceResponse>.Success(
                 new GetLoyaltyBalanceResponse(

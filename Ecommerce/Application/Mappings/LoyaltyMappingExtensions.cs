@@ -1,4 +1,5 @@
 using Application.DTOs.Loyalty;
+using Application.Services;
 using Domain.Entities;
 using Domain.Enums;
 
@@ -8,8 +9,6 @@ namespace Application.Mappings
     {
         public static GetLoyaltyBalanceResponse ToGetLoyaltyBalanceResponse(this LoyaltyAccount account)
         {
-            const int VndPerPoint = 10_000;
-            
             var totalBalance = account.AvailablePoints + account.PendingPoints;
             
             // Handle negative balance edge case
@@ -18,7 +17,7 @@ namespace Application.Mappings
                 totalBalance = 0;
             }
 
-            var vndEquivalent = totalBalance * VndPerPoint / 100;
+            var vndEquivalent = (long)(totalBalance * LoyaltyService.PointRedeemRate);
 
             return new GetLoyaltyBalanceResponse(
                 Balance: totalBalance,
