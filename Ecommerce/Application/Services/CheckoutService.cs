@@ -247,7 +247,6 @@ namespace Application.Services
                             else if (request.PaymentMethod == PaymentMethod.COD)
                             {
                                 order.MarkAsConfirmed();
-                                _unitOfWork.GetRepository<Order>().Update(order);
                             }
 
                             var payment = Payment.Create(order.Id, orderCode, new Money(paidAmount, "VND"), paymentLinkId, checkoutUrl);
