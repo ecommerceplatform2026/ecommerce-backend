@@ -126,6 +126,10 @@ namespace Application.Services
             if (order == null)
                 return Result<ReturnOrderResponse>.NotFound("Order not found.");
 
+            if (order.Status == OrderStatus.Returned)
+                return Result<ReturnOrderResponse>.Success(new ReturnOrderResponse(
+                    order.Id, order.OrderCode, order.Status.ToString(), order.CreatedAt.AddDays(7)));
+
             if (!order.CanBeReturned())
                 return Result<ReturnOrderResponse>.Failure("Order cannot be returned. It must be in Delivered status and within 7-day return window.");
 

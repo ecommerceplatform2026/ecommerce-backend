@@ -130,6 +130,35 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
+        public async Task ReturnOrder_ReturnsOk_WithReturnOrderResponse()
+        {
+            var response = new ReturnOrderResponse(OrderId, 10001, nameof(OrderStatus.Returned), DateTime.UtcNow.AddDays(7));
+
+            _orderServiceMock
+                .Setup(s => s.ReturnOrderAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<ReturnOrderResponse>.Success(response));
+
+            var result = await _controller.ReturnOrder(OrderId, CancellationToken.None);
+
+            var apiResponse = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<ReturnOrderResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.Status.Should().Be(nameof(OrderStatus.Returned));
+        }
+
+        [Fact]
+        public async Task ReturnOrder_WhenNotFound_Returns404()
+        {
+            _orderServiceMock
+                .Setup(s => s.ReturnOrderAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<ReturnOrderResponse>.NotFound("Order not found."));
+
+            var result = await _controller.ReturnOrder(OrderId, CancellationToken.None);
+
+            result.Should().BeOfType<NotFoundObjectResult>();
+        }
+
+        [Fact]
         public async Task GetMyOrders_WithTrackingList_IncludesTrackingInResponse()
         {
             var request = new GetOrdersRequest { Page = 1, PageSize = 10 };

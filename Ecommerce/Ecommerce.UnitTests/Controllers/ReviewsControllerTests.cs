@@ -48,7 +48,9 @@ namespace Ecommerce.UnitTests.Controllers
                 "Excellent",
                 "Excellent quality!",
                 ReviewStatus.Approved,
-                DateTime.UtcNow
+                DateTime.UtcNow,
+                "testuser",
+                null
             );
             var serviceResult = Result<ReviewResponse>.Success(reviewResponse);
 
