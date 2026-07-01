@@ -101,6 +101,35 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
+        public async Task CompleteOrder_ReturnsOk_WithCompleteOrderResponse()
+        {
+            var response = new CompleteOrderResponse(OrderId, 10001, nameof(OrderStatus.Completed));
+
+            _orderServiceMock
+                .Setup(s => s.CompleteOrderAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<CompleteOrderResponse>.Success(response));
+
+            var result = await _controller.CompleteOrder(OrderId, CancellationToken.None);
+
+            var apiResponse = result.Should().BeOfType<OkObjectResult>().Subject
+                .Value.Should().BeOfType<ApiResponse<CompleteOrderResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.Status.Should().Be(nameof(OrderStatus.Completed));
+        }
+
+        [Fact]
+        public async Task CompleteOrder_WhenNotFound_Returns404()
+        {
+            _orderServiceMock
+                .Setup(s => s.CompleteOrderAsync(OrderId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<CompleteOrderResponse>.NotFound("Order not found."));
+
+            var result = await _controller.CompleteOrder(OrderId, CancellationToken.None);
+
+            result.Should().BeOfType<NotFoundObjectResult>();
+        }
+
+        [Fact]
         public async Task GetMyOrders_WithTrackingList_IncludesTrackingInResponse()
         {
             var request = new GetOrdersRequest { Page = 1, PageSize = 10 };

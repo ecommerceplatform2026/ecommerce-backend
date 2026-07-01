@@ -113,6 +113,105 @@ namespace Ecommerce.UnitTests.Services
             _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         }
 
+        [Fact]
+        public async Task CompleteOrderAsync_UnauthenticatedUser_ReturnsUnauthorized()
+        {
+            _currentUserServiceMock
+                .Setup(s => s.GetUserIdOrNull())
+                .Returns((string?)null);
+
+            var result = await _service.CompleteOrderAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("User is not authenticated.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task CompleteOrderAsync_OrderNotFound_ReturnsNotFound()
+        {
+            SetupAuthenticatedUser();
+            _orderRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<Order, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<Order, object>>[]>()))
+                .ReturnsAsync((Order?)null);
+
+            var result = await _service.CompleteOrderAsync(Guid.NewGuid(), CancellationToken.None);
+
+            result.IsSuccess.Should().BeFalse();
+            result.Errors.Should().Contain("Order not found.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task CompleteOrderAsync_DeliveredOrder_CompletesAndSaves()
+        {
+            SetupAuthenticatedUser();
+            var order = CreateOrder(OrderStatus.Delivered);
+            _orderRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<Order, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<Order, object>>[]>()))
+                .ReturnsAsync(order);
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.CompleteOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().BeOfType<CompleteOrderResponse>();
+            result.Value!.OrderId.Should().Be(order.Id);
+            order.Status.Should().Be(OrderStatus.Completed);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task CompleteOrderAsync_CompletedOrder_ReturnsSuccessIdempotent()
+        {
+            SetupAuthenticatedUser();
+            var order = CreateOrder(OrderStatus.Completed);
+            _orderRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<Order, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<Order, object>>[]>()))
+                .ReturnsAsync(order);
+
+            var result = await _service.CompleteOrderAsync(order.Id, CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+            result.Value.Should().BeOfType<CompleteOrderResponse>();
+            order.Status.Should().Be(OrderStatus.Completed);
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task CompleteOrderAsync_ReturnedOrder_ThrowsInvalidOperationException()
+        {
+            SetupAuthenticatedUser();
+            var order = CreateOrder(OrderStatus.Returned);
+            _orderRepositoryMock
+                .Setup(r => r.FindAsync(
+                    It.IsAny<Expression<Func<Order, bool>>>(),
+                    false,
+                    It.IsAny<CancellationToken>(),
+                    It.IsAny<Expression<Func<Order, object>>[]>()))
+                .ReturnsAsync(order);
+
+            Func<Task> act = () => _service.CompleteOrderAsync(order.Id, CancellationToken.None);
+
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("Cannot mark an order in 'Returned' status as completed.");
+            _unitOfWorkMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        }
+
         private void SetupAuthenticatedUser()
         {
             _currentUserServiceMock

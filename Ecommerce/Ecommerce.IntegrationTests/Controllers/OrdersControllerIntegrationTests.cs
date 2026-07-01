@@ -42,6 +42,36 @@ namespace Ecommerce.IntegrationTests.Controllers
         }
 
         [Fact]
+        public async Task CompleteOrder_ReturnsOk_WithCompletedStatus()
+        {
+            var user = User.Create("Complete User", "complete@example.com", "hash");
+            Order order;
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<EcommerceContext>();
+                db.Users.Add(user);
+                await db.SaveChangesAsync();
+
+                order = Order.Create(user.Id, 112234, PaymentMethod.COD);
+                typeof(Order)
+                    .GetProperty(nameof(Order.Status), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)!
+                    .SetValue(order, OrderStatus.Delivered);
+                db.Orders.Add(order);
+                await db.SaveChangesAsync();
+            }
+            AuthenticateClient(_client, user);
+
+            var response = await _client.PostAsync($"/api/orders/{order.Id}/complete", null);
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var result = await response.Content.ReadFromJsonAsync<ApiResponse<CompleteOrderResponse>>();
+            result.Should().NotBeNull();
+            result!.Success.Should().BeTrue();
+            result.Data.Should().NotBeNull();
+            result.Data!.Status.Should().Be(nameof(OrderStatus.Completed));
+        }
+
+        [Fact]
         public async Task GetMyOrders_ReturnsOk_WithOrders()
         {
             // Arrange
