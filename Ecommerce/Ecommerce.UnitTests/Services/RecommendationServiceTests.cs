@@ -53,11 +53,11 @@ namespace Ecommerce.UnitTests.Services
             _cacheServiceMock
                 .Setup(c => c.GetOrAddAsync(
                     It.IsAny<string>(),
-                    It.IsAny<Func<Task<List<ProductResponse>>>>(),
+                    It.IsAny<Func<Task<List<ProductResponse>?>>>(),
                     It.IsAny<TimeSpan?>(),
                     It.IsAny<CancellationToken>()
                 ))
-                .Returns<string, Func<Task<List<ProductResponse>>>, TimeSpan?, CancellationToken>(
+                .Returns<string, Func<Task<List<ProductResponse>?>>, TimeSpan?, CancellationToken>(
                     async (key, factory, ttl, token) => await factory()
                 );
 
@@ -287,7 +287,7 @@ namespace Ecommerce.UnitTests.Services
 
             // Setup purchase history
             var purchase = CreateOrderItem(p2.Id, 1, DateTime.UtcNow);
-            purchase.Order.SetCreated(userId.ToString()); // mocked userId via string
+            purchase.Order!.SetCreated(userId.ToString()); // mocked userId via string
             // Reflection to override private UserId in Order
             var userIdProp = typeof(Order).GetProperty(nameof(Order.UserId));
             userIdProp?.SetValue(purchase.Order, userId);

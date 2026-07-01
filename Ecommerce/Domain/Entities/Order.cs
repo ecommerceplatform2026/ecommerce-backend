@@ -78,6 +78,9 @@ namespace Domain.Entities
 
         public void MarkAsProcessing()
         {
+            if (Status == OrderStatus.Processing)
+                return;
+
             if (Status != OrderStatus.Pending && Status != OrderStatus.Confirmed)
                 throw new InvalidOperationException($"Cannot mark order in '{Status}' as Processing.");
 
