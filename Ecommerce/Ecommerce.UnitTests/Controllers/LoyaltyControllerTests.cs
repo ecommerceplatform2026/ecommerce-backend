@@ -1,6 +1,7 @@
 using Application.Common.Response;
 using Application.DTOs.Loyalty;
 using Application.Interfaces.Services;
+using Domain.Enums;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -63,8 +64,9 @@ namespace Ecommerce.UnitTests.Controllers
             var transaction = new GetLoyaltyTransactionResponse(
                 Id: Guid.NewGuid(),
                 Date: DateTime.UtcNow,
-                Type: "Earn",
+                Type: LoyaltyTransactionType.Earn,
                 Points: 100,
+                Status: LoyaltyTransactionStatus.Completed,
                 OrderId: Guid.NewGuid().ToString(),
                 Description: "Points earned from order");
 

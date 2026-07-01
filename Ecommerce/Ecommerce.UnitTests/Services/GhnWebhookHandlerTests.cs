@@ -162,7 +162,7 @@ namespace Ecommerce.UnitTests.Services
         [Fact]
         public async Task ProcessStatusUpdateAsync_WhenReturn_MarksDeliveryReturned()
         {
-            var (delivery, order) = CreateShipment(DeliveryStatus.InTransit, OrderStatus.Processing);
+            var (delivery, order) = CreateShipment(DeliveryStatus.InTransit, OrderStatus.Delivered);
             SetupDelivery(delivery);
             SetupOrder(order);
 
@@ -176,7 +176,7 @@ namespace Ecommerce.UnitTests.Services
         [Fact]
         public async Task ProcessStatusUpdateAsync_WhenReturned_MarksDeliveryReturned()
         {
-            var (delivery, order) = CreateShipment(DeliveryStatus.InTransit, OrderStatus.Processing);
+            var (delivery, order) = CreateShipment(DeliveryStatus.InTransit, OrderStatus.Delivered);
             SetupDelivery(delivery);
             SetupOrder(order);
 
@@ -325,7 +325,7 @@ namespace Ecommerce.UnitTests.Services
         [Fact]
         public async Task ProcessStatusUpdateAsync_WithAnyTransition_UpdatesStatus()
         {
-            var (delivery, order) = CreateShipment(DeliveryStatus.Delivered, OrderStatus.Delivered);
+            var (delivery, order) = CreateShipment(DeliveryStatus.Created, OrderStatus.Confirmed);
             SetupDelivery(delivery);
             SetupOrder(order);
 

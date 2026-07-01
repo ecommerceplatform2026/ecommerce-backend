@@ -1,3 +1,4 @@
+using Application.DTOs.Loyalty;
 using Application.DTOs.Order;
 using Domain.Entities;
 
@@ -19,7 +20,10 @@ namespace Application.Mappings
                     : new List<OrderItemResponse>(),
                 order.Delivery != null
                     ? new TrackingInfo(order.Delivery.TrackingCode, order.Delivery.CarrierCode, order.Delivery.Status)
-                    : null
+                    : null,
+                order.LoyaltyTransactions?
+                    .Select(t => t.ToLoyaltyTransactionResponse())
+                    .ToList()
             );
         }
 

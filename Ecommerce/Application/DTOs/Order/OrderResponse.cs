@@ -1,3 +1,4 @@
+using Application.DTOs.Loyalty;
 using Domain.Enums;
 
 namespace Application.DTOs.Order
@@ -10,7 +11,8 @@ namespace Application.DTOs.Order
         PaymentMethod PaymentMethod,
         DateTime CreatedAt,
         List<OrderItemResponse> Items,
-        TrackingInfo? Tracking = null);
+        TrackingInfo? Tracking = null,
+        List<GetLoyaltyTransactionResponse>? LoyaltyTransactions = null);
 
     public sealed record TrackingInfo(
         string TrackingCode,

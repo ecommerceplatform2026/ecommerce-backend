@@ -51,7 +51,8 @@ namespace Application.Services
                     isDescending: true,
                     cancellationToken: cancellationToken,
                     o => o.OrderItems,
-                    o => o.Delivery!);
+                    o => o.Delivery!,
+                    o => o.LoyaltyTransactions!);
 
             var result = new PagedResult<OrderResponse>
             {
@@ -76,12 +77,71 @@ namespace Application.Services
                     asNoTracking: false,
                     cancellationToken: cancellationToken,
                     o => o.OrderItems,
-                    o => o.Delivery!);
+                    o => o.Delivery!,
+                    o => o.LoyaltyTransactions!);
 
             if (order == null)
                 return Result<OrderResponse>.NotFound("Order not found.");
 
             return Result<OrderResponse>.Success(order.ToOrderResponse());
+        }
+
+        public async Task<Result<CompleteOrderResponse>> CompleteOrderAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var userIdStr = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+                return Result<CompleteOrderResponse>.Unauthorized("User is not authenticated.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == id && o.UserId == userId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (order == null)
+                return Result<CompleteOrderResponse>.NotFound("Order not found.");
+
+            order.MarkAsCompleted();
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<CompleteOrderResponse>.Success(new CompleteOrderResponse(
+                order.Id,
+                order.OrderCode,
+                order.Status.ToString()));
+        }
+
+        public async Task<Result<ReturnOrderResponse>> ReturnOrderAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var userIdStr = _currentUserService.GetUserIdOrNull();
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+                return Result<ReturnOrderResponse>.Unauthorized("User is not authenticated.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(
+                    o => o.Id == id && o.UserId == userId && !o.IsDeleted,
+                    asNoTracking: false,
+                    cancellationToken);
+
+            if (order == null)
+                return Result<ReturnOrderResponse>.NotFound("Order not found.");
+
+            if (order.Status == OrderStatus.Returned)
+                return Result<ReturnOrderResponse>.Success(new ReturnOrderResponse(
+                    order.Id, order.OrderCode, order.Status.ToString(), order.CreatedAt.AddDays(7)));
+
+            if (!order.CanBeReturned())
+                return Result<ReturnOrderResponse>.Failure("Order cannot be returned. It must be in Delivered status and within 7-day return window.");
+
+            order.MarkAsReturned();
+
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<ReturnOrderResponse>.Success(new ReturnOrderResponse(
+                order.Id,
+                order.OrderCode,
+                order.Status.ToString(),
+                order.CreatedAt.AddDays(7)));
         }
 
         public async Task<Result<CancelOrderResponse>> CancelOrderAsync(Guid id, CancellationToken cancellationToken = default)

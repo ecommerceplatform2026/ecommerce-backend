@@ -5,8 +5,9 @@ namespace Application.DTOs.Loyalty
     public sealed record GetLoyaltyTransactionResponse(
         Guid Id,
         DateTime Date,
-        string Type,
+        LoyaltyTransactionType Type,
         int Points,
+        LoyaltyTransactionStatus Status,
         string? OrderId,
         string? Description);
 }
