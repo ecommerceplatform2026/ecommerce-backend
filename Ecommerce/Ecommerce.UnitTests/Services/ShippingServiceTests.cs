@@ -340,12 +340,65 @@ namespace Ecommerce.UnitTests.Services
                 .ReturnsAsync(variant);
         }
 
+        [Fact]
+        public async Task CreateShipmentAsync_WithSerializedSnapshot_DoesNotThrow()
+        {
+            var variantId = Guid.NewGuid();
+            var order = BuildOrder(
+                variantId: variantId,
+                snapshotJson: """{"ProductName":"Test","SKU":"ABC123","CategoryName":"Gadgets","Weight":300}""");
+            SetupOrder(order);
+            SetupVariantInStock();
+
+            _providerMock
+                .Setup(p => p.CreateShipmentAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<CreateGhnShipmentRequest>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<ShipmentResponse>.Success(
+                    new ShipmentResponse("TRACK", "ORD", 35_000, null)));
+
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task CreateShipmentAsync_WithObjectSkuSnapshot_FallsBackGracefully()
+        {
+            var order = BuildOrder(
+                snapshotJson: """{"ProductName":"Test","SKU":{"Value":"ABC123"},"CategoryName":"Gadgets","Weight":300}""");
+            SetupOrder(order);
+            SetupVariantInStock();
+
+            _providerMock
+                .Setup(p => p.CreateShipmentAsync(
+                    It.IsAny<Guid>(),
+                    It.IsAny<CreateGhnShipmentRequest>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Result<ShipmentResponse>.Success(
+                    new ShipmentResponse("TRACK", "ORD", 35_000, null)));
+
+            _unitOfWorkMock
+                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
+
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
+
+            result.IsSuccess.Should().BeTrue();
+        }
+
         private static Order BuildOrder(
             OrderStatus status = OrderStatus.Pending,
             PaymentMethod payment = PaymentMethod.COD,
             long amount = 150_000,
             bool withAddress = true,
-            Guid? variantId = null)
+            Guid? variantId = null,
+            string? snapshotJson = null)
         {
             var user = User.Create("Test User", "test@test.com", "hash");
             if (withAddress)
@@ -359,8 +412,7 @@ namespace Ecommerce.UnitTests.Services
             order.User = user;
             SetOrderStatus(order, status);
 
-            var snapshot = """{"ProductName":"Test Product","SKU":"TST-001","CategoryName":"Electronics","Weight":500}""";
-            order.AddItem(variantId ?? Guid.NewGuid(), 1, new Domain.Common.Money(amount), snapshot);
+            order.AddItem(variantId ?? Guid.NewGuid(), 1, new Domain.Common.Money(amount), snapshotJson ?? """{"ProductName":"Test Product","SKU":"TST-001","CategoryName":"Electronics","Weight":500}""");
 
             return order;
         }

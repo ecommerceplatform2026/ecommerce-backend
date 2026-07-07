@@ -93,7 +93,7 @@ namespace Application.Services
 
             int totalWeight = order.OrderItems.Sum(oi =>
             {
-                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
                 return snapshot?.Weight ?? _settings.DefaultWeight;
             });
 
@@ -105,7 +105,7 @@ namespace Application.Services
 
             var items = order.OrderItems.Select(oi =>
             {
-                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
                 return new CreateGhnShipmentItemInfo
                 {
                     Name = snapshot?.ProductName ?? "Product",
@@ -208,7 +208,7 @@ namespace Application.Services
 
             int totalWeight = order.OrderItems.Sum(oi =>
             {
-                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
                 return snapshot?.Weight ?? _settings.DefaultWeight;
             });
 
@@ -220,7 +220,7 @@ namespace Application.Services
 
             var items = order.OrderItems.Select(oi =>
             {
-                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
                 return new CreateGhnShipmentItemInfo
                 {
                     Name = snapshot?.ProductName ?? "Product",
@@ -358,6 +358,20 @@ namespace Application.Services
             public string? SKU { get; set; }
             public string? CategoryName { get; set; }
             public int Weight { get; set; } = 500;
+        }
+
+        private static SnapshotData? DeserializeSnapshot(string? productSnapshot)
+        {
+            if (string.IsNullOrWhiteSpace(productSnapshot))
+                return null;
+            try
+            {
+                return JsonSerializer.Deserialize<SnapshotData>(productSnapshot);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
     }
 }
