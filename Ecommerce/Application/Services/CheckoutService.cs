@@ -184,7 +184,11 @@ namespace Application.Services
                                     SKU = variant.SKU.Value,
                                     Color = variant.Color,
                                     Size = variant.Size,
-                                    Price = variant.Price
+                                    Price = variant.Price,
+                                    Weight = variant.Weight,
+                                    Length = variant.Length,
+                                    Width = variant.Width,
+                                    Height = variant.Height
                                 };
                                 var snapshotJson = JsonSerializer.Serialize(snapshotObj);
 

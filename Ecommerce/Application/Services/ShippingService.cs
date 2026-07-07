@@ -93,7 +93,7 @@ namespace Application.Services
             int totalWeight = order.OrderItems.Sum(oi =>
             {
                 var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
-                return snapshot?.Weight ?? _settings.DefaultWeight;
+                return snapshot?.Weight ?? 0;
             });
 
             long codAmount = order.PaymentMethod == PaymentMethod.COD
@@ -111,7 +111,10 @@ namespace Application.Services
                     Sku = snapshot?.SKU ?? oi.Id.ToString(),
                     Quantity = oi.Quantity,
                     Price = oi.Price.Amount,
-                    Weight = snapshot?.Weight ?? _settings.DefaultWeight,
+                    Weight = snapshot?.Weight ?? 0,
+                    Length = snapshot?.Length ?? 0,
+                    Width = snapshot?.Width ?? 0,
+                    Height = snapshot?.Height ?? 0,
                     CategoryName = snapshot?.CategoryName
                 };
             }).ToList();
@@ -124,7 +127,7 @@ namespace Application.Services
                 Province = address.Province ?? string.Empty,
                 District = address.District ?? string.Empty,
                 Ward = address.Ward ?? string.Empty,
-                TotalWeight = Math.Max(totalWeight, _settings.DefaultWeight),
+                TotalWeight = totalWeight,
                 CodAmount = codAmount,
                 InsuranceValue = Math.Min(insuranceValue, 10_000_000),
                 OrderCode = $"ORD-{order.OrderCode}",
@@ -141,7 +144,7 @@ namespace Application.Services
                 request.Carrier,
                 shipmentInfo.ReceiverName, shipmentInfo.ReceiverPhone, shipmentInfo.AddressLine,
                 shipmentInfo.Province, shipmentInfo.District, shipmentInfo.Ward,
-                shipmentInfo.TotalWeight, _settings.DefaultLength, _settings.DefaultWidth, _settings.DefaultHeight,
+                shipmentInfo.TotalWeight, items.Max(i => i.Length), items.Max(i => i.Width), items.Sum(i => i.Height),
                 codAmount, shipmentInfo.InsuranceValue,
                 $"Order #{order.OrderCode}");
 
@@ -208,7 +211,7 @@ namespace Application.Services
             int totalWeight = order.OrderItems.Sum(oi =>
             {
                 var snapshot = DeserializeSnapshot(oi.ProductSnapshot);
-                return snapshot?.Weight ?? _settings.DefaultWeight;
+                return snapshot?.Weight ?? 0;
             });
 
             long codAmount = order.PaymentMethod == PaymentMethod.COD
@@ -226,7 +229,10 @@ namespace Application.Services
                     Sku = snapshot?.SKU ?? oi.Id.ToString(),
                     Quantity = oi.Quantity,
                     Price = oi.Price.Amount,
-                    Weight = snapshot?.Weight ?? _settings.DefaultWeight,
+                    Weight = snapshot?.Weight ?? 0,
+                    Length = snapshot?.Length ?? 0,
+                    Width = snapshot?.Width ?? 0,
+                    Height = snapshot?.Height ?? 0,
                     CategoryName = snapshot?.CategoryName
                 };
             }).ToList();
@@ -239,7 +245,7 @@ namespace Application.Services
                 Province = address.Province ?? string.Empty,
                 District = address.District ?? string.Empty,
                 Ward = address.Ward ?? string.Empty,
-                TotalWeight = Math.Max(totalWeight, _settings.DefaultWeight),
+                TotalWeight = totalWeight,
                 CodAmount = codAmount,
                 InsuranceValue = Math.Min(insuranceValue, 10_000_000),
                 OrderCode = $"ORD-{order.OrderCode}",
@@ -356,7 +362,10 @@ namespace Application.Services
             public string? ProductName { get; set; }
             public string? SKU { get; set; }
             public string? CategoryName { get; set; }
-            public int Weight { get; set; } = 500;
+            public int Weight { get; set; }
+            public int Length { get; set; }
+            public int Width { get; set; }
+            public int Height { get; set; }
         }
 
         private static SnapshotData? DeserializeSnapshot(string? productSnapshot)
