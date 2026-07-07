@@ -42,25 +42,24 @@ namespace Application.Services
         }
 
         public async Task<Result<ShipmentResponse>> CreateShipmentAsync(
-            Guid orderId,
-            string carrierCode,
+            CreateShipmentRequest request,
             CancellationToken cancellationToken = default)
         {
-            if (orderId == Guid.Empty)
+            if (request.OrderId == Guid.Empty)
                 return Result<ShipmentResponse>.Failure("Order ID cannot be empty.");
 
-            if (string.IsNullOrWhiteSpace(carrierCode))
-                carrierCode = _settings.DefaultCarrier;
+            if (string.IsNullOrWhiteSpace(request.Carrier))
+                request = request with { Carrier = _settings.DefaultCarrier };
 
             var provider = _providers.FirstOrDefault(p =>
-                p.CarrierCode.Equals(carrierCode, StringComparison.OrdinalIgnoreCase));
+                p.CarrierCode.Equals(request.Carrier, StringComparison.OrdinalIgnoreCase));
 
             if (provider == null)
-                return Result<ShipmentResponse>.Failure($"No shipping provider found for carrier '{carrierCode}'.");
+                return Result<ShipmentResponse>.Failure($"No shipping provider found for carrier '{request.Carrier}'.");
 
             var order = await _unitOfWork.GetRepository<Order>()
                 .FindAsync(
-                    o => o.Id == orderId && !o.IsDeleted,
+                    o => o.Id == request.OrderId && !o.IsDeleted,
                     asNoTracking: false,
                     cancellationToken,
                     o => o.OrderItems,
@@ -139,7 +138,7 @@ namespace Application.Services
 
             var delivery = Delivery.Create(
                 order.Id,
-                carrierCode,
+                request.Carrier,
                 shipmentInfo.ReceiverName, shipmentInfo.ReceiverPhone, shipmentInfo.AddressLine,
                 shipmentInfo.Province, shipmentInfo.District, shipmentInfo.Ward,
                 shipmentInfo.TotalWeight, _settings.DefaultLength, _settings.DefaultWidth, _settings.DefaultHeight,

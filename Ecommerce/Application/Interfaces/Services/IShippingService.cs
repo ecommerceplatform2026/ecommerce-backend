@@ -16,8 +16,7 @@ namespace Application.Interfaces.Services
         /// Create shipment for given order using specified carrier.
         /// </summary>
         Task<Result<ShipmentResponse>> CreateShipmentAsync(
-            Guid orderId,
-            string carrierCode,
+            CreateShipmentRequest request,
             CancellationToken cancellationToken = default);
 
         /// <summary>

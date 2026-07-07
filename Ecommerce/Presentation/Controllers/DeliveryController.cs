@@ -28,13 +28,12 @@ namespace Presentation.Controllers
             _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
         }
 
-        [HttpPost("{orderId:guid}")]
+        [HttpPost]
         public async Task<IActionResult> CreateShipment(
-            Guid orderId,
-            [FromQuery] string carrier = "GHN",
+            [FromBody] CreateShipmentRequest request,
             CancellationToken cancellationToken = default)
         {
-            var result = await _shippingService.CreateShipmentAsync(orderId, carrier, cancellationToken);
+            var result = await _shippingService.CreateShipmentAsync(request, cancellationToken);
             return this.FromResult(result);
         }
 
