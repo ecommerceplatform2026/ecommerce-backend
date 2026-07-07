@@ -161,6 +161,113 @@ namespace Application.Services
             return Result<ShipmentResponse>.Success(result.Value);
         }
 
+        public async Task<Result<ShipmentResponse>> RetryShipmentAsync(
+            Guid deliveryId,
+            CancellationToken cancellationToken = default)
+        {
+            if (deliveryId == Guid.Empty)
+                return Result<ShipmentResponse>.Failure("Delivery ID cannot be empty.");
+
+            var delivery = await _unitOfWork.GetRepository<Delivery>()
+                .FindAsync(d => d.Id == deliveryId && !d.IsDeleted, asNoTracking: false, cancellationToken);
+
+            if (delivery == null)
+                return Result<ShipmentResponse>.NotFound("Delivery not found.");
+
+            if (delivery.Status != DeliveryStatus.Exception)
+                return Result<ShipmentResponse>.Failure($"Cannot retry delivery in '{delivery.Status}' status. Only Exception deliveries can be retried.");
+
+            var order = await _unitOfWork.GetRepository<Order>()
+                .FindAsync(o => o.Id == delivery.OrderId && !o.IsDeleted, asNoTracking: false, cancellationToken);
+
+            if (order == null)
+                return Result<ShipmentResponse>.NotFound("Order not found.");
+
+            var provider = _providers.FirstOrDefault(p =>
+                p.CarrierCode.Equals(delivery.CarrierCode, StringComparison.OrdinalIgnoreCase));
+
+            if (provider == null)
+                return Result<ShipmentResponse>.Failure($"No shipping provider found for carrier '{delivery.CarrierCode}'.");
+
+            var address = order.User?.UserAddresses?.FirstOrDefault(a => a.IsDefault && !a.IsDeleted)
+                ?? order.User?.UserAddresses?.FirstOrDefault(a => !a.IsDeleted);
+
+            if (address == null)
+                return Result<ShipmentResponse>.Failure("User has no shipping address.");
+
+            foreach (var item in order.OrderItems)
+            {
+                var variant = await _unitOfWork.GetRepository<ProductVariant>()
+                    .FindAsync(v => v.Id == item.ProductVariantId, asNoTracking: true, cancellationToken);
+
+                if (variant == null || variant.IsOutOfStock())
+                    return Result<ShipmentResponse>.Failure($"Product for variant {item.ProductVariantId} is out of stock.");
+            }
+
+            int totalWeight = order.OrderItems.Sum(oi =>
+            {
+                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                return snapshot?.Weight ?? _settings.DefaultWeight;
+            });
+
+            long codAmount = order.PaymentMethod == PaymentMethod.COD
+                ? order.TotalAmount.Amount
+                : 0;
+
+            long insuranceValue = order.TotalAmount.Amount;
+
+            var items = order.OrderItems.Select(oi =>
+            {
+                var snapshot = JsonSerializer.Deserialize<SnapshotData>(oi.ProductSnapshot);
+                return new CreateGhnShipmentItemInfo
+                {
+                    Name = snapshot?.ProductName ?? "Product",
+                    Sku = snapshot?.SKU ?? oi.Id.ToString(),
+                    Quantity = oi.Quantity,
+                    Price = oi.Price.Amount,
+                    Weight = snapshot?.Weight ?? _settings.DefaultWeight,
+                    CategoryName = snapshot?.CategoryName
+                };
+            }).ToList();
+
+            var shipmentInfo = new CreateGhnShipmentRequest
+            {
+                ReceiverName = address.ReceiverName,
+                ReceiverPhone = address.PhoneNumber,
+                AddressLine = address.AddressLine,
+                Province = address.Province ?? string.Empty,
+                District = address.District ?? string.Empty,
+                Ward = address.Ward ?? string.Empty,
+                TotalWeight = Math.Max(totalWeight, _settings.DefaultWeight),
+                CodAmount = codAmount,
+                InsuranceValue = Math.Min(insuranceValue, 10_000_000),
+                OrderCode = $"ORD-{order.OrderCode}",
+                Items = items
+            };
+
+            var result = await provider.CreateShipmentAsync(order.Id, shipmentInfo, cancellationToken);
+
+            if (!result.IsSuccess || result.Value == null)
+                return Result<ShipmentResponse>.Failure(result.Errors?.FirstOrDefault() ?? "Shipping provider failed.");
+
+            delivery.ResetForRetry();
+            delivery.MarkShipmentCreated(
+                result.Value.TrackingCode,
+                result.Value.CarrierOrderCode,
+                result.Value.ShippingFee);
+
+            _unitOfWork.GetRepository<Delivery>().Update(delivery);
+
+            if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Confirmed)
+                order.MarkAsProcessing();
+
+            order.MarkAsShipping();
+            _unitOfWork.GetRepository<Order>().Update(order);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            return Result<ShipmentResponse>.Success(result.Value);
+        }
+
         private sealed class SnapshotData
         {
             public string? ProductName { get; set; }

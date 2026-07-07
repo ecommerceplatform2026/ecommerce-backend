@@ -1,3 +1,4 @@
+using Application.DTOs.Delivery;
 using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,7 @@ namespace Presentation.Controllers
 {
     [Route("api/delivery")]
     [ApiController]
+    [Authorize(Roles = "Admin")]
     public class DeliveryController : ControllerBase
     {
         private readonly IShippingService _shippingService;
@@ -33,6 +35,15 @@ namespace Presentation.Controllers
             CancellationToken cancellationToken = default)
         {
             var result = await _shippingService.CreateShipmentAsync(orderId, carrier, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpPost("retry")]
+        public async Task<IActionResult> RetryShipment(
+            [FromBody] RetryShipmentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _shippingService.RetryShipmentAsync(request.DeliveryId, cancellationToken);
             return this.FromResult(result);
         }
 
