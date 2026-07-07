@@ -51,24 +51,23 @@ namespace Infrastructure.Services
                 mac
             };
 
-            try
+            var response = await _httpClient.PostAsJsonAsync(_settings.CreateUrl, requestBody, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
             {
-                var response = await _httpClient.PostAsJsonAsync(_settings.CreateUrl, requestBody, cancellationToken);
-                if (response.IsSuccessStatusCode)
-                {
-                    var resData = await response.Content.ReadFromJsonAsync<ZaloPayCreateResponse>(cancellationToken: cancellationToken);
-                    if (resData != null && resData.ReturnCode == 1 && !string.IsNullOrEmpty(resData.OrderUrl))
-                    {
-                        return resData.OrderUrl;
-                    }
-                }
-            }
-            catch
-            {
-                // Fallback to local sandbox page mock if ZaloPay server is unreachable
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException($"ZaloPay API returned {(int)response.StatusCode}: {errorBody}");
             }
 
-            return $"https://sb-openapi.zalopay.vn/v2/gateway/pay?appid={_settings.AppId}&apptransid={appTransId}";
+            var resData = await response.Content.ReadFromJsonAsync<ZaloPayCreateResponse>(cancellationToken: cancellationToken);
+
+            if (resData == null || resData.ReturnCode != 1)
+            {
+                var errorMsg = resData?.ReturnMessage ?? "Unknown error";
+                throw new InvalidOperationException($"ZaloPay payment creation failed: {errorMsg}");
+            }
+
+            return resData.OrderUrl;
         }
 
         public bool ValidateCallback(IDictionary<string, string> parameters, out int orderCode, out bool isSuccess)
