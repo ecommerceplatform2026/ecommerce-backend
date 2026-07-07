@@ -11,6 +11,10 @@ namespace Domain.Entities
         public long Stock { get; private set; }
         public long LowStockThreshold { get; private set; }
         public Money Price { get; private set; } = null!;
+        public int Weight { get; private set; }
+        public int Length { get; private set; }
+        public int Width { get; private set; }
+        public int Height { get; private set; }
 
         public Product Product { get; set; } = null!;
         public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
@@ -19,7 +23,7 @@ namespace Domain.Entities
 
         private ProductVariant() { }
 
-        private ProductVariant(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5)
+        private ProductVariant(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5, int weight = 1, int length = 1, int width = 1, int height = 1)
         {
             ProductId = productId;
             SKU = sku ?? throw new ArgumentNullException(nameof(sku));
@@ -28,20 +32,28 @@ namespace Domain.Entities
             Stock = EnsureNonNegative(stock, nameof(stock));
             Price = price ?? throw new ArgumentNullException(nameof(price));
             LowStockThreshold = EnsureNonNegative(lowStockThreshold, nameof(lowStockThreshold));
+            Weight = Math.Max(0, weight);
+            Length = Math.Max(0, length);
+            Width = Math.Max(0, width);
+            Height = Math.Max(0, height);
         }
 
-        public static ProductVariant Create(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5)
+        public static ProductVariant Create(Guid productId, Sku sku, string? color, string? size, long stock, Money price, long lowStockThreshold = 5, int weight = 1, int length = 1, int width = 1, int height = 1)
         {
-            return new ProductVariant(productId, sku, color, size, stock, price, lowStockThreshold);
+            return new ProductVariant(productId, sku, color, size, stock, price, lowStockThreshold, weight, length, width, height);
         }
 
-        public void Update(Sku sku, string? color, string? size, Money price, long lowStockThreshold)
+        public void Update(Sku sku, string? color, string? size, Money price, long lowStockThreshold, int weight = 1, int length = 1, int width = 1, int height = 1)
         {
             SKU = sku ?? throw new ArgumentNullException(nameof(sku));
             Color = color?.Trim();
             Size = size?.Trim();
             Price = price ?? throw new ArgumentNullException(nameof(price));
             LowStockThreshold = EnsureNonNegative(lowStockThreshold, nameof(lowStockThreshold));
+            Weight = Math.Max(0, weight);
+            Length = Math.Max(0, length);
+            Width = Math.Max(0, width);
+            Height = Math.Max(0, height);
         }
 
         public void UpdateStock(long newStock)

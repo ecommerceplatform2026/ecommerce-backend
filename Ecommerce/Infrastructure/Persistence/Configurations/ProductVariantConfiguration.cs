@@ -25,6 +25,10 @@ namespace Infrastructure.Persistence.Configurations
                    .HasConversion(m => m.Amount, a => new Money(a, "VND"))
                    .IsRequired()
                    .HasColumnType("bigint");
+            builder.Property(pv => pv.Weight).IsRequired().HasDefaultValue(1);
+            builder.Property(pv => pv.Length).IsRequired().HasDefaultValue(1);
+            builder.Property(pv => pv.Width).IsRequired().HasDefaultValue(1);
+            builder.Property(pv => pv.Height).IsRequired().HasDefaultValue(1);
 
             builder.HasIndex(pv => pv.SKU)
                    .IsUnique()
