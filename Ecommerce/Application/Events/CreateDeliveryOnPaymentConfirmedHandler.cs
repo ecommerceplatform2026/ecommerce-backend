@@ -1,4 +1,5 @@
 using Application.Configurations;
+using Application.DTOs.Delivery;
 using Application.Interfaces.Events;
 using Application.Interfaces.Services;
 using Domain.Events;
@@ -32,8 +33,7 @@ namespace Application.Events
             try
             {
                 var result = await _shippingService.CreateShipmentAsync(
-                    domainEvent.Order.Id,
-                    _settings.DefaultCarrier,
+                    new CreateShipmentRequest(domainEvent.Order.Id, _settings.DefaultCarrier),
                     cancellationToken);
 
                 if (!result.IsSuccess)
