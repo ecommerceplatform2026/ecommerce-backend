@@ -8,9 +8,9 @@ namespace Application.Interfaces.Services
 {
     public interface ILoyaltyService
     {
-        static double PointEarnRate { get; }
-        static int PointRedeemRate { get; }
-        static int PointPerRedeemUnit { get; }
+        static double PointEarnRate => 1.0 / 10_000.0;
+        static double PointRedeemRate => 100.0;
+        static int PointPerRedeemUnit => 100;
 
         Task<Result<int>> CreatePendingLoyaltyTransactionsAsync(Guid orderId, int? redeemedPoints, CancellationToken cancellationToken = default);
         Task<Result<int>> CompletePendingTransactionsForOrderAsync(Guid orderId, CancellationToken cancellationToken = default);

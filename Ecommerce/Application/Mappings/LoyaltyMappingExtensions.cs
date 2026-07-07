@@ -1,5 +1,5 @@
 using Application.DTOs.Loyalty;
-using Application.Services;
+using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
 
@@ -17,7 +17,7 @@ namespace Application.Mappings
                 totalBalance = 0;
             }
 
-            var vndEquivalent = (long)(totalBalance * LoyaltyService.PointRedeemRate);
+            var vndEquivalent = (long)(totalBalance * ILoyaltyService.PointRedeemRate);
 
             return new GetLoyaltyBalanceResponse(
                 Balance: totalBalance,
