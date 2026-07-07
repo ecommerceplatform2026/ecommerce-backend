@@ -16,9 +16,7 @@ namespace Application.Services
 {
     public sealed class LoyaltyService : ILoyaltyService
     {
-        public static double PointEarnRate => 1.0 / 10_000.0;    // 10,000 VND spent = 1 point
-        public static double PointRedeemRate => 100.0;         // 1 point = 100 VND discount
-        public static int PointPerRedeemUnit => 100;      // Points must be redeemed in multiples of 100
+
 
         private const string EarnTransactionUniqueIndex = "IX_LoyaltyTransactions_OrderId_Type";
 
@@ -237,7 +235,7 @@ namespace Application.Services
         /// <returns>The number of points earned (always ≥ 0).</returns>
         public static int CalculateEarnValue(long amount)
         {
-            return (int)(amount * PointEarnRate);
+            return (int)(amount * ILoyaltyService.PointEarnRate);
         }
 
         /// <summary>
@@ -250,13 +248,13 @@ namespace Application.Services
         /// <returns>The total discount value in VND.</returns>
         public static long CalculateRedeemValue(int points)
         {
-            return (long)(points * PointRedeemRate);
+            return (long)(points * ILoyaltyService.PointRedeemRate);
         }
 
         public static void ValidateRedemptionPoints(int points)
         {
-            if (points % PointPerRedeemUnit != 0)
-                throw new InvalidOperationException($"Redeemed points must be in multiples of {PointPerRedeemUnit}.");
+            if (points % ILoyaltyService.PointPerRedeemUnit != 0)
+                throw new InvalidOperationException($"Redeemed points must be in multiples of {ILoyaltyService.PointPerRedeemUnit}.");
         }
 
         public async Task<Result<GetLoyaltyBalanceResponse>> GetLoyaltyBalanceAsync(CancellationToken cancellationToken = default)
@@ -291,7 +289,7 @@ namespace Application.Services
                 totalBalance = 0;
             }
 
-            var vndEquivalent = (long)(totalBalance * PointRedeemRate);
+            var vndEquivalent = (long)(totalBalance * ILoyaltyService.PointRedeemRate);
 
             return Result<GetLoyaltyBalanceResponse>.Success(
                 new GetLoyaltyBalanceResponse(

@@ -210,7 +210,7 @@ namespace Application.Services
 
                                 if (subtotal - discount < minOrderTotal)
                                 {
-                                    var maxAffordablePoints = (int)(((subtotal - minOrderTotal) * LoyaltyService.PointEarnRate) * LoyaltyService.PointRedeemRate);
+                                    var maxAffordablePoints = (int)(((subtotal - minOrderTotal) * ILoyaltyService.PointEarnRate) * ILoyaltyService.PointRedeemRate);
                                     if (maxAffordablePoints <= 0)
                                         throw new InvalidOperationException($"Redemption would reduce order total below minimum. Order total after discount must be at least {minOrderTotal} VND.");
                                     points = maxAffordablePoints;
