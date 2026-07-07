@@ -7,6 +7,8 @@ namespace Application.DTOs.Order
         Guid Id,
         int OrderCode,
         long TotalAmount,
+        long DiscountAmount,
+        long PaidAmount,
         OrderStatus Status,
         PaymentMethod PaymentMethod,
         DateTime CreatedAt,
