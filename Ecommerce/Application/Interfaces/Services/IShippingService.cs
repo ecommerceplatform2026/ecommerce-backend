@@ -22,5 +22,14 @@ namespace Application.Interfaces.Services
             Guid orderId,
             string carrierCode,
             CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Retry a failed delivery that is in Exception status.
+        /// Resets the delivery state, calls carrier API again,
+        /// and updates tracking info.
+        /// </summary>
+        Task<Result<ShipmentResponse>> RetryShipmentAsync(
+            Guid deliveryId,
+            CancellationToken cancellationToken = default);
     }
 }

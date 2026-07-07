@@ -186,6 +186,76 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
+        public async Task RetryShipment_WithValidDelivery_ReturnsOk()
+        {
+            var deliveryId = Guid.NewGuid();
+            var serviceResult = Result<ShipmentResponse>.Success(SampleResponse);
+
+            _shippingServiceMock
+                .Setup(s => s.RetryShipmentAsync(deliveryId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.RetryShipment(new RetryShipmentRequest(deliveryId), CancellationToken.None);
+
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<ShipmentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().NotBeNull();
+            apiResponse.Data!.TrackingCode.Should().Be("TRACK-001");
+        }
+
+        [Fact]
+        public async Task RetryShipment_WhenDeliveryNotFound_ReturnsNotFound()
+        {
+            var deliveryId = Guid.NewGuid();
+            var serviceResult = Result<ShipmentResponse>.NotFound("Delivery not found.");
+
+            _shippingServiceMock
+                .Setup(s => s.RetryShipmentAsync(deliveryId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.RetryShipment(new RetryShipmentRequest(deliveryId), CancellationToken.None);
+
+            result.Should().BeOfType<NotFoundObjectResult>();
+        }
+
+        [Fact]
+        public async Task RetryShipment_WhenDeliveryNotInException_ReturnsBadRequest()
+        {
+            var deliveryId = Guid.NewGuid();
+            var serviceResult = Result<ShipmentResponse>.Failure("Cannot retry delivery in 'Delivered' status. Only Exception deliveries can be retried.");
+
+            _shippingServiceMock
+                .Setup(s => s.RetryShipmentAsync(deliveryId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.RetryShipment(new RetryShipmentRequest(deliveryId), CancellationToken.None);
+
+            var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+            var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse<ShipmentResponse>>().Subject;
+            apiResponse.Success.Should().BeFalse();
+            apiResponse.Errors.Should().Contain(e => e.Contains("Exception deliveries can be retried"));
+        }
+
+        [Fact]
+        public async Task RetryShipment_WhenServiceFails_ReturnsBadRequest()
+        {
+            var deliveryId = Guid.NewGuid();
+            var serviceResult = Result<ShipmentResponse>.Failure("Shipping provider failed.");
+
+            _shippingServiceMock
+                .Setup(s => s.RetryShipmentAsync(deliveryId, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.RetryShipment(new RetryShipmentRequest(deliveryId), CancellationToken.None);
+
+            var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+            var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse<ShipmentResponse>>().Subject;
+            apiResponse.Success.Should().BeFalse();
+            apiResponse.Errors.Should().Contain("Shipping provider failed.");
+        }
+
+        [Fact]
         public async Task HandleDeliveryStatus_WithMultipleHandlers_ResolvesCorrectCarrier()
         {
             var ghtkMock = new Mock<IShippingWebhookHandler>();
