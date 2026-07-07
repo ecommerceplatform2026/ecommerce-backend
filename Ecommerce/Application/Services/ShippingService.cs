@@ -1,9 +1,11 @@
+using System.Linq.Expressions;
 using Application.Common.Response;
 using Application.Configurations;
 using Application.DTOs.Delivery;
 using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
+using Domain.Common;
 using Domain.Entities;
 using Domain.Enums;
 using Microsoft.Extensions.Options;
@@ -263,6 +265,88 @@ namespace Application.Services
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<ShipmentResponse>.Success(result.Value);
+        }
+
+        public async Task<Result<PagedResult<ShipmentDetailResponse>>> GetDeliveriesAsync(
+            GetShipmentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var predicate = BuildDeliveryFilter(request);
+
+            var (items, totalCount) = await _unitOfWork.GetRepository<Delivery>()
+                .GetPagedAsync(request.Page, request.PageSize, predicate,
+                    d => d.CreatedAt, isDescending: true, cancellationToken);
+
+            var mapped = items.Select(d => new ShipmentDetailResponse
+            {
+                Id = d.Id,
+                OrderId = d.OrderId,
+                CarrierCode = d.CarrierCode,
+                TrackingCode = d.TrackingCode,
+                CarrierOrderCode = d.CarrierOrderCode,
+                ToName = d.ToName,
+                ToPhone = d.ToPhone,
+                ToAddress = d.ToAddress,
+                Province = d.Province,
+                District = d.District,
+                Ward = d.Ward,
+                Weight = d.Weight,
+                CodAmount = d.CodAmount,
+                InsuranceValue = d.InsuranceValue,
+                ShippingFee = d.ShippingFee,
+                Note = d.Note,
+                Status = d.Status,
+                CreatedAt = d.CreatedAt,
+                UpdatedAt = d.UpdatedAt
+            }).ToList();
+
+            return Result<PagedResult<ShipmentDetailResponse>>.Success(new PagedResult<ShipmentDetailResponse>
+            {
+                Items = mapped,
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = totalCount
+            });
+        }
+
+        private static Expression<Func<Delivery, bool>> BuildDeliveryFilter(GetShipmentRequest request)
+        {
+            var param = Expression.Parameter(typeof(Delivery), "d");
+            Expression body = Expression.Not(Expression.Property(param, nameof(BaseEntity.IsDeleted)));
+
+            if (request.Status.HasValue)
+            {
+                body = Expression.AndAlso(body,
+                    Expression.Equal(
+                        Expression.Property(param, nameof(Delivery.Status)),
+                        Expression.Constant(request.Status.Value)));
+            }
+
+            if (request.OrderId.HasValue)
+            {
+                body = Expression.AndAlso(body,
+                    Expression.Equal(
+                        Expression.Property(param, nameof(Delivery.OrderId)),
+                        Expression.Constant(request.OrderId.Value)));
+            }
+
+            if (request.CreatedFrom.HasValue)
+            {
+                body = Expression.AndAlso(body,
+                    Expression.GreaterThanOrEqual(
+                        Expression.Property(param, nameof(BaseEntity.CreatedAt)),
+                        Expression.Constant(request.CreatedFrom.Value)));
+            }
+
+            if (request.CreatedTo.HasValue)
+            {
+                body = Expression.AndAlso(body,
+                    Expression.LessThanOrEqual(
+                        Expression.Property(param, nameof(BaseEntity.CreatedAt)),
+                        Expression.Constant(request.CreatedTo.Value)));
+            }
+
+            return Expression.Lambda<Func<Delivery, bool>>(body, param);
         }
 
         private sealed class SnapshotData

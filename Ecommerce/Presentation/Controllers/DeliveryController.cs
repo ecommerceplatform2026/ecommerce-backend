@@ -47,6 +47,15 @@ namespace Presentation.Controllers
             return this.FromResult(result);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetDeliveries(
+            [FromQuery] GetShipmentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _shippingService.GetDeliveriesAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
+
         [AllowAnonymous]
         [HttpPost("webhook/status")]
         public async Task<IActionResult> HandleDeliveryStatus(

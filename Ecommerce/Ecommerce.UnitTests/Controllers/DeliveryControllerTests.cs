@@ -2,6 +2,7 @@ using Application.DTOs.Delivery;
 using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Services;
 using Application.Common.Response;
+using Domain.Enums;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -285,7 +286,115 @@ namespace Ecommerce.UnitTests.Controllers
             _webhookHandlerMock.Verify(h => h.ProcessStatusUpdateAsync(It.IsAny<object>(), It.IsAny<CancellationToken>()), Times.Once);
         }
 
+        [Fact]
+        public async Task GetDeliveries_WithNoFilters_ReturnsOk()
+        {
+            var request = new GetShipmentRequest();
+            var paged = new PagedResult<ShipmentDetailResponse>
+            {
+                Items = new List<ShipmentDetailResponse> { SampleShipmentDetailResponse() },
+                Page = 1,
+                PageSize = 10,
+                TotalCount = 1
+            };
+            var serviceResult = Result<PagedResult<ShipmentDetailResponse>>.Success(paged);
 
+            _shippingServiceMock
+                .Setup(s => s.GetDeliveriesAsync(It.IsAny<GetShipmentRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.GetDeliveries(request, CancellationToken.None);
+
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PagedResult<ShipmentDetailResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data.Should().NotBeNull();
+            apiResponse.Data!.Items.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task GetDeliveries_WithStatusFilter_ReturnsFilteredResults()
+        {
+            var request = new GetShipmentRequest { Status = DeliveryStatus.Created };
+            var paged = new PagedResult<ShipmentDetailResponse>
+            {
+                Items = new List<ShipmentDetailResponse> { SampleShipmentDetailResponse() },
+                Page = 1,
+                PageSize = 10,
+                TotalCount = 1
+            };
+            var serviceResult = Result<PagedResult<ShipmentDetailResponse>>.Success(paged);
+
+            _shippingServiceMock
+                .Setup(s => s.GetDeliveriesAsync(It.IsAny<GetShipmentRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.GetDeliveries(request, CancellationToken.None);
+
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PagedResult<ShipmentDetailResponse>>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task GetDeliveries_WhenServiceFails_ReturnsBadRequest()
+        {
+            var request = new GetShipmentRequest();
+            var serviceResult = Result<PagedResult<ShipmentDetailResponse>>.Failure("Failed to retrieve deliveries.");
+
+            _shippingServiceMock
+                .Setup(s => s.GetDeliveriesAsync(It.IsAny<GetShipmentRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.GetDeliveries(request, CancellationToken.None);
+
+            var badRequestResult = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+            var apiResponse = badRequestResult.Value.Should().BeOfType<ApiResponse<PagedResult<ShipmentDetailResponse>>>().Subject;
+            apiResponse.Success.Should().BeFalse();
+        }
+
+        [Fact]
+        public async Task GetDeliveries_PagingParams_ArePassedThrough()
+        {
+            var request = new GetShipmentRequest { Page = 2, PageSize = 5 };
+            var paged = new PagedResult<ShipmentDetailResponse>
+            {
+                Items = new List<ShipmentDetailResponse>(),
+                Page = 2,
+                PageSize = 5,
+                TotalCount = 0
+            };
+            var serviceResult = Result<PagedResult<ShipmentDetailResponse>>.Success(paged);
+
+            _shippingServiceMock
+                .Setup(s => s.GetDeliveriesAsync(It.IsAny<GetShipmentRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
+
+            var result = await _controller.GetDeliveries(request, CancellationToken.None);
+
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PagedResult<ShipmentDetailResponse>>>().Subject;
+            apiResponse.Data!.Page.Should().Be(2);
+            apiResponse.Data.PageSize.Should().Be(5);
+        }
+
+        private static ShipmentDetailResponse SampleShipmentDetailResponse()
+        {
+            return new ShipmentDetailResponse
+            {
+                Id = Guid.NewGuid(),
+                OrderId = Guid.NewGuid(),
+                CarrierCode = "GHN",
+                TrackingCode = "TRACK-001",
+                Status = DeliveryStatus.Pending,
+                ToName = "Receiver",
+                ToPhone = "0900000000",
+                ToAddress = "123 Street",
+                Province = "Province",
+                District = "District",
+                Ward = "Ward",
+                CreatedAt = DateTime.UtcNow
+            };
+        }
     }
-
 }
