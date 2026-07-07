@@ -83,8 +83,8 @@ namespace Application.Services
                         existingPayment.OrderId,
                         existingPayment.OrderCode,
                         existingPayment.Order.TotalAmount.Amount,
-                        existingPayment.Order.DiscountAmount,
-                        existingPayment.Order.TotalAmount.Amount - existingPayment.Order.DiscountAmount,
+                        existingPayment.Order.DiscountAmount.Amount,
+                        existingPayment.Order.TotalAmount.Amount - existingPayment.Order.DiscountAmount.Amount,
                         existingPayment.Order.Status,
                         existingPayment.Order.PaymentMethod,
                         itemResponses,
@@ -223,7 +223,7 @@ namespace Application.Services
                                 order.ApplyDiscount(discount);
                             }
 
-                            long paidAmount = order.TotalAmount.Amount - order.DiscountAmount;
+                            long paidAmount = order.TotalAmount.Amount - order.DiscountAmount.Amount;
 
                             string? checkoutUrl = null;
                             string paymentLinkId = "";
@@ -271,8 +271,8 @@ namespace Application.Services
                                 order.Id,
                                 order.OrderCode,
                                 order.TotalAmount.Amount,
-                                order.DiscountAmount,
-                                order.TotalAmount.Amount - order.DiscountAmount,
+                                order.DiscountAmount.Amount,
+                                order.TotalAmount.Amount - order.DiscountAmount.Amount,
                                 order.Status,
                                 order.PaymentMethod,
                                 itemResponses,

@@ -13,10 +13,12 @@ namespace Infrastructure.Persistence.Configurations
             builder.Property(o => o.TotalAmount)
                    .HasConversion(m => m.Amount, a => new Money(a, "VND"))
                    .IsRequired();
+            builder.Property(o => o.DiscountAmount)
+                   .HasConversion(m => m.Amount, a => new Money(a, "VND"))
+                   .IsRequired();
             builder.Property(o => o.Status).IsRequired();
             builder.Property(o => o.OrderCode).IsRequired();
             builder.Property(o => o.PaymentMethod).IsRequired();
-            builder.Property(o => o.DiscountAmount).HasDefaultValue(0L).IsRequired();
 
             builder.HasOne(o => o.User)
                    .WithMany(u => u.Orders)

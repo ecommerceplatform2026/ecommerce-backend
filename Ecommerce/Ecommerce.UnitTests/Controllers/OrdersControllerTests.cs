@@ -36,7 +36,7 @@ namespace Ecommerce.UnitTests.Controllers
         public async Task GetMyOrders_ReturnsOk_WithPagedList()
         {
             var request = new GetOrdersRequest { Page = 1, PageSize = 10, Status = OrderStatus.Pending };
-            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items) };
+            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, 0, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items) };
             var paged = new PagedResult<OrderResponse> { Items = orders, Page = 1, PageSize = 10, TotalCount = 1 };
 
             _orderServiceMock
@@ -55,7 +55,7 @@ namespace Ecommerce.UnitTests.Controllers
         public async Task GetOrderById_WhenOrderHasTracking_ReturnsTrackingInfo()
         {
             var tracking = new TrackingInfo("TRACK-001", "GHN", DeliveryStatus.InTransit);
-            var order = new OrderResponse(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking);
+            var order = new OrderResponse(OrderId, 10001, 150000, 0, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking);
 
             _orderServiceMock
                 .Setup(s => s.GetOrderByIdAsync(OrderId, It.IsAny<CancellationToken>()))
@@ -75,7 +75,7 @@ namespace Ecommerce.UnitTests.Controllers
         [Fact]
         public async Task GetOrderById_WhenOrderHasNoTracking_TrackingIsNull()
         {
-            var order = new OrderResponse(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items);
+            var order = new OrderResponse(OrderId, 10001, 150000, 0, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items);
 
             _orderServiceMock
                 .Setup(s => s.GetOrderByIdAsync(OrderId, It.IsAny<CancellationToken>()))
@@ -163,7 +163,7 @@ namespace Ecommerce.UnitTests.Controllers
         {
             var request = new GetOrdersRequest { Page = 1, PageSize = 10 };
             var tracking = new TrackingInfo("TRACK-001", "GHN", DeliveryStatus.InTransit);
-            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking) };
+            var orders = new List<OrderResponse> { new(OrderId, 10001, 150000, 0, 150000, OrderStatus.Pending, PaymentMethod.COD, DateTime.UtcNow, Items, tracking) };
             var paged = new PagedResult<OrderResponse> { Items = orders, Page = 1, PageSize = 10, TotalCount = 1 };
 
             _orderServiceMock
