@@ -154,6 +154,10 @@ namespace Application.Services
                 account.CompletePendingPoints(totalEarnPoints);
             }
 
+            account.RecalculateTotals(order.LoyaltyTransactions
+                .Where(t => t.Status == LoyaltyTransactionStatus.Completed)
+                .ToList());
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<int>.Success(pendingTransactions.Sum(t => t.Points));
         }
@@ -277,23 +281,29 @@ namespace Application.Services
                 return Result<GetLoyaltyBalanceResponse>.Success(
                     new GetLoyaltyBalanceResponse(
                         Balance: 0,
+                        PendingPoints: 0,
+                        TotalEarned: 0,
+                        TotalRedeemed: 0,
                         DiscountEquivalent: 0,
                         LastUpdated: DateTime.UtcNow));
             }
 
-            var totalBalance = account.AvailablePoints + account.PendingPoints;
+            var balance = account.AvailablePoints;
             
             // Handle negative balance edge case
-            if (totalBalance < 0)
+            if (balance < 0)
             {
-                totalBalance = 0;
+                balance = 0;
             }
 
-            var vndEquivalent = (long)(totalBalance * ILoyaltyService.PointRedeemRate);
+            var vndEquivalent = (long)(balance * ILoyaltyService.PointRedeemRate);
 
             return Result<GetLoyaltyBalanceResponse>.Success(
                 new GetLoyaltyBalanceResponse(
-                    Balance: totalBalance,
+                    Balance: balance,
+                    PendingPoints: account.PendingPoints,
+                    TotalEarned: account.TotalEarn,
+                    TotalRedeemed: account.TotalRedeem,
                     DiscountEquivalent: vndEquivalent,
                     LastUpdated: DateTime.UtcNow));
         }
