@@ -242,7 +242,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ErrorMiddleware>();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowFrontend");
 

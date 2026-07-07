@@ -7,7 +7,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,8 +28,8 @@ namespace Infrastructure.Services
             var requestId = Guid.NewGuid().ToString();
             var orderId = orderCode.ToString() + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
             var orderInfo = $"Thanh toan don hang {orderCode}";
-            var redirectUrl = $"http://localhost:3000/payments/momo/callback"; // Frontend callback URL
-            var ipnUrl = $"https://example.com/api/payments/momo/callback";     // Backend IPN
+            var redirectUrl = _settings.ReturnUrl;
+            var ipnUrl = _settings.NotifyUrl;
             var requestType = "captureWallet";
             var extraData = "";
 
@@ -71,7 +70,7 @@ namespace Infrastructure.Services
                 throw new InvalidOperationException($"MoMo payment creation failed: {errorMsg}");
             }
 
-            return resData.PayUrl;
+            return resData.PayUrl!;
         }
 
         public bool ValidateCallback(IDictionary<string, string> parameters, out int orderCode, out bool isSuccess)

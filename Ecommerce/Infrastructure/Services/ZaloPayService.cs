@@ -48,6 +48,8 @@ namespace Infrastructure.Services
                 embeddata = embedData,
                 description,
                 bankcode = "zalopayapp",
+                callback_url = _settings.NotifyUrl,
+                redirect_url = _settings.ReturnUrl,
                 mac
             };
 
@@ -63,11 +65,13 @@ namespace Infrastructure.Services
 
             if (resData == null || resData.ReturnCode != 1)
             {
-                var errorMsg = resData?.ReturnMessage ?? "Unknown error";
+                var errorMsg = resData == null
+                    ? "null response"
+                    : $"code={resData.ReturnCode} sub={resData.SubReturnCode}: {resData.ReturnMessage ?? "no message"}";
                 throw new InvalidOperationException($"ZaloPay payment creation failed: {errorMsg}");
             }
 
-            return resData.OrderUrl;
+            return resData.OrderUrl!;
         }
 
         public bool ValidateCallback(IDictionary<string, string> parameters, out int orderCode, out bool isSuccess)
@@ -75,42 +79,31 @@ namespace Infrastructure.Services
             orderCode = 0;
             isSuccess = false;
 
-            if (parameters == null || !parameters.TryGetValue("checksum", out var checksum))
+            if (parameters == null ||
+                !parameters.TryGetValue("data", out var data) ||
+                !parameters.TryGetValue("mac", out var mac))
             {
                 return false;
             }
 
-            parameters.TryGetValue("appid", out var appid);
-            parameters.TryGetValue("apptransid", out var apptransid);
-            parameters.TryGetValue("pmcid", out var pmcid);
-            parameters.TryGetValue("bankcode", out var bankcode);
-            parameters.TryGetValue("amount", out var amount);
-            parameters.TryGetValue("discountamount", out var discountamount);
-            parameters.TryGetValue("status", out var statusStr);
-
-            // Compute checksum: appid | apptransid | pmcid | bankcode | amount | discountamount | status
-            var rawData = $"{appid}|{apptransid}|{pmcid}|{bankcode}|{amount}|{discountamount}|{statusStr}";
-            var computedChecksum = HmacSha256(_settings.Key2, rawData);
-
-            if (computedChecksum != checksum)
-            {
+            var computedMac = HmacSha256(_settings.Key2, data);
+            if (computedMac != mac)
                 return false;
-            }
 
-            if (!string.IsNullOrEmpty(apptransid))
-            {
-                var parts = apptransid.Split('_');
-                if (parts.Length > 1 && int.TryParse(parts[1], out var parsedOrderCode))
-                {
-                    orderCode = parsedOrderCode;
-                }
-            }
+            using var doc = JsonDocument.Parse(data);
+            if (!doc.RootElement.TryGetProperty("app_trans_id", out var appTransIdEl))
+                return false;
 
-            if (statusStr == "1")
-            {
-                isSuccess = true;
-            }
+            var appTransId = appTransIdEl.GetString();
+            if (string.IsNullOrEmpty(appTransId))
+                return false;
 
+            var parts = appTransId.Split('_');
+            if (parts.Length <= 1 || !int.TryParse(parts[1], out var parsedOrderCode))
+                return false;
+
+            orderCode = parsedOrderCode;
+            isSuccess = true;
             return true;
         }
 
