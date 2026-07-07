@@ -181,7 +181,7 @@ namespace Application.Services
                                     ProductName = product.Name,
                                     ProductDescription = product.Description,
                                     Material = product.Material,
-                                    SKU = variant.SKU,
+                                    SKU = variant.SKU.Value,
                                     Color = variant.Color,
                                     Size = variant.Size,
                                     Price = variant.Price
