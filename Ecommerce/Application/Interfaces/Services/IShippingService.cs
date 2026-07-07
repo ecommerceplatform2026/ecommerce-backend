@@ -14,9 +14,6 @@ namespace Application.Interfaces.Services
     {
         /// <summary>
         /// Create shipment for given order using specified carrier.
-        /// Validates address, calls carrier API, saves tracking,
-        /// transitions order to Shipping.
-        /// Returns full ShipmentResponse on success.
         /// </summary>
         Task<Result<ShipmentResponse>> CreateShipmentAsync(
             Guid orderId,
@@ -25,11 +22,16 @@ namespace Application.Interfaces.Services
 
         /// <summary>
         /// Retry a failed delivery that is in Exception status.
-        /// Resets the delivery state, calls carrier API again,
-        /// and updates tracking info.
         /// </summary>
         Task<Result<ShipmentResponse>> RetryShipmentAsync(
             Guid deliveryId,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// List deliveries with optional filters and paging.
+        /// </summary>
+        Task<Result<PagedResult<ShipmentDetailResponse>>> GetDeliveriesAsync(
+            GetShipmentRequest request,
             CancellationToken cancellationToken = default);
     }
 }
