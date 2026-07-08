@@ -12,6 +12,8 @@ namespace Infrastructure.Persistence.Configurations
             builder.HasIndex(a => a.UserId).IsUnique();
             builder.Property(a => a.AvailablePoints).IsRequired();
             builder.Property(a => a.PendingPoints).IsRequired();
+            builder.Property(a => a.TotalEarn).IsRequired().HasDefaultValue(0);
+            builder.Property(a => a.TotalRedeem).IsRequired().HasDefaultValue(0);
 
             builder.HasOne(a => a.User)
                    .WithOne(u => u.LoyaltyAccount)

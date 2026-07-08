@@ -7,7 +7,6 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,8 +28,8 @@ namespace Infrastructure.Services
             var requestId = Guid.NewGuid().ToString();
             var orderId = orderCode.ToString() + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
             var orderInfo = $"Thanh toan don hang {orderCode}";
-            var redirectUrl = $"http://localhost:3000/payments/momo/callback"; // Frontend callback URL
-            var ipnUrl = $"https://example.com/api/payments/momo/callback";     // Backend IPN
+            var redirectUrl = _settings.ReturnUrl;
+            var ipnUrl = _settings.NotifyUrl;
             var requestType = "captureWallet";
             var extraData = "";
 
@@ -55,24 +54,23 @@ namespace Infrastructure.Services
                 signature
             };
 
-            try
+            var response = await _httpClient.PostAsJsonAsync(_settings.CreateUrl, requestBody, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
             {
-                var response = await _httpClient.PostAsJsonAsync(_settings.CreateUrl, requestBody, cancellationToken);
-                if (response.IsSuccessStatusCode)
-                {
-                    var resData = await response.Content.ReadFromJsonAsync<MomoCreateResponse>(cancellationToken: cancellationToken);
-                    if (resData != null && !string.IsNullOrEmpty(resData.PayUrl))
-                    {
-                        return resData.PayUrl;
-                    }
-                }
-            }
-            catch
-            {
-                // Fallback to local sandbox page mock if Momo server is unreachable
+                var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new InvalidOperationException($"MoMo API returned {(int)response.StatusCode}: {errorBody}");
             }
 
-            return $"https://test-payment.momo.vn/v2/gateway/api/pay?partnerCode={_settings.PartnerCode}&orderId={orderId}";
+            var resData = await response.Content.ReadFromJsonAsync<MomoCreateResponse>(cancellationToken: cancellationToken);
+
+            if (resData == null || resData.ResultCode != 0)
+            {
+                var errorMsg = resData?.Message ?? "Unknown error";
+                throw new InvalidOperationException($"MoMo payment creation failed: {errorMsg}");
+            }
+
+            return resData.PayUrl!;
         }
 
         public bool ValidateCallback(IDictionary<string, string> parameters, out int orderCode, out bool isSuccess)
