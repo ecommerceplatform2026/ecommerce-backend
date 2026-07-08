@@ -6,7 +6,5 @@ namespace Application.Configurations
         public string AccessKey { get; set; } = string.Empty;
         public string SecretKey { get; set; } = string.Empty;
         public string CreateUrl { get; set; } = string.Empty;
-        public string ReturnUrl { get; set; } = string.Empty;
-        public string NotifyUrl { get; set; } = string.Empty;
     }
 }

@@ -46,18 +46,18 @@ namespace Domain.Entities
 
         public void Deactivate() => Status = ProductStatus.Inactive;
 
-        public void AddVariant(string sku, string? color, string? size, long stock, Money price, long lowStockThreshold, int weight = 1, int length = 1, int width = 1, int height = 1)
+        public void AddVariant(string sku, string? color, string? size, long stock, Money price, long lowStockThreshold)
         {
             sku = NormalizeRequired(sku);
 
             if (ProductVariants.Any(v => v.SKU.Value.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
                 throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
 
-            var variant = ProductVariant.Create(Id, new Sku(sku), color, size, stock, price, lowStockThreshold, weight, length, width, height);
+            var variant = ProductVariant.Create(Id, new Sku(sku), color, size, stock, price, lowStockThreshold);
             ProductVariants.Add(variant);
         }
 
-        public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, Money price, long lowStockThreshold, int weight = 1, int length = 1, int width = 1, int height = 1)
+        public void UpdateVariant(Guid variantId, string sku, string? color, string? size, long stock, Money price, long lowStockThreshold)
         {
             sku = NormalizeRequired(sku);
 
@@ -68,7 +68,7 @@ namespace Domain.Entities
             if (ProductVariants.Any(v => v.Id != variantId && v.SKU.Value.Equals(sku, StringComparison.OrdinalIgnoreCase) && !v.IsDeleted))
                 throw new InvalidOperationException($"Variant with SKU '{sku}' already exists for this product.");
 
-            variant.Update(new Sku(sku), color, size, price, lowStockThreshold, weight, length, width, height);
+            variant.Update(new Sku(sku), color, size, price, lowStockThreshold);
             variant.UpdateStock(stock);
         }
 

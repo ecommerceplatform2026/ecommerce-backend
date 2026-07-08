@@ -11,7 +11,7 @@ namespace Infrastructure.Persistence.Configurations
             builder.HasKey(p => p.Id);
             builder.Property(p => p.PaymentLinkId).IsRequired().HasMaxLength(100);
             builder.Property(p => p.OrderCode).IsRequired();
-            builder.Property(p => p.CheckoutUrl).HasColumnType("text");
+            builder.Property(p => p.CheckoutUrl).HasMaxLength(500);
             builder.OwnsOne(p => p.Amount, a =>
             {
                 a.Property(m => m.Amount).HasColumnName("Amount").IsRequired();

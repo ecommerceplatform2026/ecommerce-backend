@@ -1,8 +1,6 @@
 using Domain.Common;
-using Domain.Enums;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Domain.Entities
 {
@@ -11,8 +9,6 @@ namespace Domain.Entities
         public Guid UserId { get; private set; }
         public int AvailablePoints { get; private set; }
         public int PendingPoints { get; private set; }
-        public int TotalEarn { get; private set; }
-        public int TotalRedeem { get; private set; }
 
         public User? User { get; set; }
         public virtual ICollection<LoyaltyTransaction> Transactions { get; set; } = new List<LoyaltyTransaction>();
@@ -27,8 +23,6 @@ namespace Domain.Entities
             UserId = userId;
             AvailablePoints = 0;
             PendingPoints = 0;
-            TotalEarn = 0;
-            TotalRedeem = 0;
         }
 
         public static LoyaltyAccount Create(Guid userId)
@@ -105,19 +99,6 @@ namespace Domain.Entities
                 throw new InvalidOperationException("Insufficient available points to reverse.");
 
             AvailablePoints -= points;
-        }
-
-        public void RecalculateTotals(IEnumerable<LoyaltyTransaction>? transactions)
-        {
-            var transactionList = transactions ?? Enumerable.Empty<LoyaltyTransaction>();
-
-            TotalEarn = transactionList
-                .Where(t => t.Type == LoyaltyTransactionType.Earn && t.Status == LoyaltyTransactionStatus.Completed)
-                .Sum(t => t.Points);
-
-            TotalRedeem = transactionList
-                .Where(t => t.Type == LoyaltyTransactionType.Redeem && t.Status == LoyaltyTransactionStatus.Completed)
-                .Sum(t => t.Points);
         }
     }
 }

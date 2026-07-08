@@ -67,13 +67,15 @@ namespace Ecommerce.IntegrationTests.Controllers
             }
 
             // Act
-            var response = await _client.GetAsync($"/api/payments/vnpay/callback?vnp_TxnRef={orderCode}&vnp_ResponseCode=00");
+            var response = await _client.GetAsync($"/api/payments/vnpay-return?vnp_TxnRef={orderCode}&vnp_ResponseCode=00");
 
             // Assert
             response.StatusCode.Should().Be(HttpStatusCode.OK);
-            var body = await response.Content.ReadAsStringAsync();
-            body.Should().Contain("00");
-            body.Should().Contain("success");
+            var result = await response.Content.ReadFromJsonAsync<ApiResponse<PaymentResponse>>();
+            result.Should().NotBeNull();
+            result!.Success.Should().BeTrue();
+            result.Data.Should().NotBeNull();
+            result.Data!.Status.Should().Be(PaymentStatus.Success);
         }
     }
 

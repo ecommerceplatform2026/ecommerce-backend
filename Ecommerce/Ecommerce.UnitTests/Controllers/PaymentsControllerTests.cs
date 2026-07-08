@@ -10,7 +10,6 @@ using Presentation.Controllers;
 using Presentation.Common.Responses;
 using System;
 using System.Collections.Generic;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -36,7 +35,7 @@ namespace Ecommerce.UnitTests.Controllers
         }
 
         [Fact]
-        public async Task VnPayCallback_ReturnsOk_WhenSuccessful()
+        public async Task VnPayReturn_ReturnsOk_WhenSuccessful()
         {
             // Arrange
             var paymentResponse = new PaymentResponse(
@@ -55,53 +54,55 @@ namespace Ecommerce.UnitTests.Controllers
                 .ReturnsAsync(serviceResult);
 
             // Act
-            var result = await _controller.VnPayCallback(CancellationToken.None);
+            var result = await _controller.VnPayReturn(CancellationToken.None);
 
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var value = JsonSerializer.Serialize(okResult.Value);
-            value.Should().Contain("RspCode");
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
+            apiResponse.Data!.Status.Should().Be(PaymentStatus.Success);
         }
 
         [Fact]
-        public async Task MomoCallback_ReturnsOk()
+        public async Task MomoCallback_ReturnsOk_WhenSuccessful()
         {
             // Arrange
             var requestBody = new Dictionary<string, string> { { "resultCode", "0" } };
+            var paymentResponse = new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url");
+            var serviceResult = Result<PaymentResponse>.Success(paymentResponse);
 
             _paymentServiceMock
-                .Setup(s => s.ProcessMomoCallbackAsync(It.IsAny<IDictionary<string, string>>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<PaymentResponse>.Success(new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url")));
+                .Setup(s => s.ProcessMomoCallbackAsync(requestBody, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
 
             // Act
             var result = await _controller.MomoCallback(requestBody, CancellationToken.None);
 
             // Assert
-            result.Should().BeOfType<OkObjectResult>();
+            var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
         }
 
         [Fact]
-        public async Task ZaloPayCallback_ReturnsOk_WithReturnCode()
+        public async Task ZaloPayCallback_ReturnsOk_WhenSuccessful()
         {
             // Arrange
-            var requestBody = new Dictionary<string, string>
-            {
-                { "app_id", "2553" },
-                { "app_trans_id", "240101_12345" },
-                { "amount", "50000" }
-            };
+            var requestBody = new Dictionary<string, string> { { "status", "1" } };
+            var paymentResponse = new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url");
+            var serviceResult = Result<PaymentResponse>.Success(paymentResponse);
 
             _paymentServiceMock
-                .Setup(s => s.ProcessZaloPayCallbackAsync(It.IsAny<IDictionary<string, string>>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<PaymentResponse>.Success(new PaymentResponse(Guid.NewGuid(), Guid.NewGuid(), 12345, 200000, PaymentStatus.Success, "link", "url")));
+                .Setup(s => s.ProcessZaloPayCallbackAsync(requestBody, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(serviceResult);
 
             // Act
             var result = await _controller.ZaloPayCallback(requestBody, CancellationToken.None);
 
             // Assert
             var okResult = result.Should().BeOfType<OkObjectResult>().Subject;
-            var value = JsonSerializer.Serialize(okResult.Value);
-            value.Should().Contain("return_code");
+            var apiResponse = okResult.Value.Should().BeOfType<ApiResponse<PaymentResponse>>().Subject;
+            apiResponse.Success.Should().BeTrue();
         }
 
         [Fact]
