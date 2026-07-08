@@ -60,7 +60,7 @@ namespace Ecommerce.UnitTests.Services
         [Fact]
         public async Task CreateShipmentAsync_WithEmptyOrderId_ReturnsFailure()
         {
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(Guid.Empty, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(Guid.Empty, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Order ID cannot be empty.");
@@ -70,7 +70,7 @@ namespace Ecommerce.UnitTests.Services
         [Fact]
         public async Task CreateShipmentAsync_WithUnknownCarrier_ReturnsFailure()
         {
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(Guid.NewGuid(), "UNKNOWN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(Guid.NewGuid(), "UNKNOWN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("No shipping provider found for carrier 'UNKNOWN'.");
@@ -82,7 +82,7 @@ namespace Ecommerce.UnitTests.Services
         {
             SetupOrder(null);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(Guid.NewGuid(), "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(Guid.NewGuid(), "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Order not found.");
@@ -95,7 +95,7 @@ namespace Ecommerce.UnitTests.Services
             var order = BuildOrder(OrderStatus.Shipping);
             SetupOrder(order);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Cannot create shipment for order in 'Shipping' status.");
@@ -111,7 +111,7 @@ namespace Ecommerce.UnitTests.Services
                 500, 10, 10, 10, 0, 0, null);
             SetupOrder(order);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Shipment already exists for this order.");
@@ -124,7 +124,7 @@ namespace Ecommerce.UnitTests.Services
             var order = BuildOrder(withAddress: false);
             SetupOrder(order);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("User has no shipping address.");
@@ -142,7 +142,7 @@ namespace Ecommerce.UnitTests.Services
             SetupOrder(order);
             SetupVariant(variant);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain($"Product for variant {variantId} is out of stock.");
@@ -168,7 +168,7 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, ""), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "", CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
             result.Value!.TrackingCode.Should().Be("TRACK-1");
@@ -192,7 +192,7 @@ namespace Ecommerce.UnitTests.Services
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(Result<ShipmentResponse>.Failure("Carrier API error"));
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeFalse();
             result.Errors.Should().Contain("Carrier API error");
@@ -227,7 +227,7 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            var result = await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             result.IsSuccess.Should().BeTrue();
             result.Value!.TrackingCode.Should().Be("TRACK-001");
@@ -269,7 +269,7 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             addedDelivery!.CodAmount.Should().Be(200_000);
         }
@@ -299,7 +299,7 @@ namespace Ecommerce.UnitTests.Services
                 .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(1);
 
-            await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
+            await _service.CreateShipmentAsync(order.Id, "GHN", CancellationToken.None);
 
             addedDelivery!.CodAmount.Should().Be(0);
         }
@@ -340,65 +340,12 @@ namespace Ecommerce.UnitTests.Services
                 .ReturnsAsync(variant);
         }
 
-        [Fact]
-        public async Task CreateShipmentAsync_WithSerializedSnapshot_DoesNotThrow()
-        {
-            var variantId = Guid.NewGuid();
-            var order = BuildOrder(
-                variantId: variantId,
-                snapshotJson: """{"ProductName":"Test","SKU":"ABC123","CategoryName":"Gadgets","Weight":300}""");
-            SetupOrder(order);
-            SetupVariantInStock();
-
-            _providerMock
-                .Setup(p => p.CreateShipmentAsync(
-                    It.IsAny<Guid>(),
-                    It.IsAny<CreateGhnShipmentRequest>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<ShipmentResponse>.Success(
-                    new ShipmentResponse("TRACK", "ORD", 35_000, null)));
-
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-        }
-
-        [Fact]
-        public async Task CreateShipmentAsync_WithObjectSkuSnapshot_FallsBackGracefully()
-        {
-            var order = BuildOrder(
-                snapshotJson: """{"ProductName":"Test","SKU":{"Value":"ABC123"},"CategoryName":"Gadgets","Weight":300}""");
-            SetupOrder(order);
-            SetupVariantInStock();
-
-            _providerMock
-                .Setup(p => p.CreateShipmentAsync(
-                    It.IsAny<Guid>(),
-                    It.IsAny<CreateGhnShipmentRequest>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(Result<ShipmentResponse>.Success(
-                    new ShipmentResponse("TRACK", "ORD", 35_000, null)));
-
-            _unitOfWorkMock
-                .Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(1);
-
-            var result = await _service.CreateShipmentAsync(new CreateShipmentRequest(order.Id, "GHN"), CancellationToken.None);
-
-            result.IsSuccess.Should().BeTrue();
-        }
-
         private static Order BuildOrder(
             OrderStatus status = OrderStatus.Pending,
             PaymentMethod payment = PaymentMethod.COD,
             long amount = 150_000,
             bool withAddress = true,
-            Guid? variantId = null,
-            string? snapshotJson = null)
+            Guid? variantId = null)
         {
             var user = User.Create("Test User", "test@test.com", "hash");
             if (withAddress)
@@ -412,7 +359,8 @@ namespace Ecommerce.UnitTests.Services
             order.User = user;
             SetOrderStatus(order, status);
 
-            order.AddItem(variantId ?? Guid.NewGuid(), 1, new Domain.Common.Money(amount), snapshotJson ?? """{"ProductName":"Test Product","SKU":"TST-001","CategoryName":"Electronics","Weight":500}""");
+            var snapshot = """{"ProductName":"Test Product","SKU":"TST-001","CategoryName":"Electronics","Weight":500}""";
+            order.AddItem(variantId ?? Guid.NewGuid(), 1, new Domain.Common.Money(amount), snapshot);
 
             return order;
         }

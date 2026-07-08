@@ -140,7 +140,7 @@ namespace Ecommerce.UnitTests.EntityTests
 
             order.ApplyDiscount(30000);
 
-            order.DiscountAmount.Amount.Should().Be(30000);
+            order.DiscountAmount.Should().Be(30000);
         }
 
         [Fact]

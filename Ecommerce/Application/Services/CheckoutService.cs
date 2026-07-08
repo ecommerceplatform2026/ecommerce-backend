@@ -83,8 +83,8 @@ namespace Application.Services
                         existingPayment.OrderId,
                         existingPayment.OrderCode,
                         existingPayment.Order.TotalAmount.Amount,
-                        existingPayment.Order.DiscountAmount.Amount,
-                        existingPayment.Order.TotalAmount.Amount - existingPayment.Order.DiscountAmount.Amount,
+                        existingPayment.Order.DiscountAmount,
+                        existingPayment.Order.TotalAmount.Amount - existingPayment.Order.DiscountAmount,
                         existingPayment.Order.Status,
                         existingPayment.Order.PaymentMethod,
                         itemResponses,
@@ -181,14 +181,10 @@ namespace Application.Services
                                     ProductName = product.Name,
                                     ProductDescription = product.Description,
                                     Material = product.Material,
-                                    SKU = variant.SKU.Value,
+                                    SKU = variant.SKU,
                                     Color = variant.Color,
                                     Size = variant.Size,
-                                    Price = variant.Price,
-                                    Weight = variant.Weight,
-                                    Length = variant.Length,
-                                    Width = variant.Width,
-                                    Height = variant.Height
+                                    Price = variant.Price
                                 };
                                 var snapshotJson = JsonSerializer.Serialize(snapshotObj);
 
@@ -210,7 +206,7 @@ namespace Application.Services
 
                                 if (subtotal - discount < minOrderTotal)
                                 {
-                                    var maxAffordablePoints = (int)(((subtotal - minOrderTotal) * ILoyaltyService.PointEarnRate) * ILoyaltyService.PointRedeemRate);
+                                    var maxAffordablePoints = (int)(((subtotal - minOrderTotal) * LoyaltyService.PointEarnRate) * LoyaltyService.PointRedeemRate);
                                     if (maxAffordablePoints <= 0)
                                         throw new InvalidOperationException($"Redemption would reduce order total below minimum. Order total after discount must be at least {minOrderTotal} VND.");
                                     points = maxAffordablePoints;
@@ -223,7 +219,7 @@ namespace Application.Services
                                 order.ApplyDiscount(discount);
                             }
 
-                            long paidAmount = order.TotalAmount.Amount - order.DiscountAmount.Amount;
+                            long paidAmount = order.TotalAmount.Amount - order.DiscountAmount;
 
                             string? checkoutUrl = null;
                             string paymentLinkId = "";
@@ -271,8 +267,8 @@ namespace Application.Services
                                 order.Id,
                                 order.OrderCode,
                                 order.TotalAmount.Amount,
-                                order.DiscountAmount.Amount,
-                                order.TotalAmount.Amount - order.DiscountAmount.Amount,
+                                order.DiscountAmount,
+                                order.TotalAmount.Amount - order.DiscountAmount,
                                 order.Status,
                                 order.PaymentMethod,
                                 itemResponses,

@@ -12,8 +12,6 @@ namespace Application.Mappings
                 order.Id,
                 order.OrderCode,
                 order.TotalAmount.Amount,
-                order.DiscountAmount.Amount,
-                order.TotalAmount.Amount - order.DiscountAmount.Amount,
                 order.Status,
                 order.PaymentMethod,
                 order.CreatedAt,

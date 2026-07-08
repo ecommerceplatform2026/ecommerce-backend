@@ -49,18 +49,14 @@ namespace Infrastructure.Services.Ghn
                 code = i.Sku,
                 quantity = i.Quantity,
                 price = (int)i.Price,
-                length = i.Length,
-                width = i.Width,
-                height = i.Height,
-                weight = i.Weight,
+                length = _options.Value.DefaultLength,
+                width = _options.Value.DefaultWidth,
+                height = _options.Value.DefaultHeight,
+                weight = i.Weight > 0 ? i.Weight : _options.Value.DefaultWeight,
                 category = new GhnItemCategory { level1 = string.IsNullOrEmpty(i.CategoryName) ? "Hàng hóa" : i.CategoryName }
             }).ToList();
 
             var pickup = await _shopService.GetPickupAddressAsync(ct);
-
-            var pkgLength = info.Items.Count > 0 ? info.Items.Max(i => i.Length) : 0;
-            var pkgWidth = info.Items.Count > 0 ? info.Items.Max(i => i.Width) : 0;
-            var pkgHeight = info.Items.Sum(i => i.Height);
 
             var request = new GhnCreateOrderRequest
             {
@@ -75,9 +71,9 @@ namespace Infrastructure.Services.Ghn
                 to_ward_code = wardCode!,
                 to_district_id = districtId!.Value,
                 weight = info.TotalWeight,
-                length = pkgLength,
-                width = pkgWidth,
-                height = pkgHeight,
+                length = _options.Value.DefaultLength,
+                width = _options.Value.DefaultWidth,
+                height = _options.Value.DefaultHeight,
                 service_type_id = _options.Value.ServiceTypeId,
                 payment_type_id = _options.Value.PaymentTypeId,
                 required_note = _options.Value.RequiredNote,

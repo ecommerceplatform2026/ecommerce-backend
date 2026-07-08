@@ -1,5 +1,5 @@
 using Application.DTOs.Loyalty;
-using Application.Interfaces.Services;
+using Application.Services;
 using Domain.Entities;
 using Domain.Enums;
 
@@ -9,25 +9,33 @@ namespace Application.Mappings
     {
         public static GetLoyaltyBalanceResponse ToGetLoyaltyBalanceResponse(this LoyaltyAccount account)
         {
-            var balance = account.AvailablePoints;
-            var vndEquivalent = (long)(balance * ILoyaltyService.PointRedeemRate);
+            var totalBalance = account.AvailablePoints + account.PendingPoints;
+            
+            // Handle negative balance edge case
+            if (totalBalance < 0)
+            {
+                totalBalance = 0;
+            }
+
+            var vndEquivalent = (long)(totalBalance * LoyaltyService.PointRedeemRate);
 
             return new GetLoyaltyBalanceResponse(
-                Balance: balance,
-                PendingPoints: account.PendingPoints,
-                TotalEarned: account.TotalEarn,
-                TotalRedeemed: account.TotalRedeem,
+                Balance: totalBalance,
                 DiscountEquivalent: vndEquivalent,
                 LastUpdated: DateTime.UtcNow);
         }
 
         public static GetLoyaltyTransactionResponse ToLoyaltyTransactionResponse(this LoyaltyTransaction transaction)
         {
+            var displayPoints = transaction.Type == LoyaltyTransactionType.Earn
+                ? transaction.Points
+                : -transaction.Points;
+
             return new GetLoyaltyTransactionResponse(
                 Id: transaction.Id,
                 Date: transaction.CreatedAt,
                 Type: transaction.Type,
-                Points: transaction.Points,
+                Points: displayPoints,
                 Status: transaction.Status,
                 OrderId: transaction.OrderId?.ToString(),
                 Description: transaction.Description);

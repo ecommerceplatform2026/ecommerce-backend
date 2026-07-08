@@ -134,21 +134,6 @@ namespace Domain.Entities
                 Note = errorMessage;
         }
 
-        public void ResetForRetry()
-        {
-            if (Status != DeliveryStatus.Exception)
-                throw new InvalidOperationException($"Cannot reset for retry when status is {Status}. Only Exception deliveries can be retried.");
-
-            var history = Note ?? string.Empty;
-            var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-            Note = $"[Retry at {timestamp}] {history}".Trim();
-
-            TrackingCode = string.Empty;
-            CarrierOrderCode = null;
-            ShippingFee = 0;
-            Status = DeliveryStatus.Pending;
-        }
-
         public void UpdateWeight(int newWeight)
         {
             if (newWeight <= 0)
