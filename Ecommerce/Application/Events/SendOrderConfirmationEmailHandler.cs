@@ -1,7 +1,5 @@
 using Application.Interfaces.Events;
 using Application.Interfaces.Services;
-using Domain.Entities;
-using Domain.Enums;
 using Domain.Events;
 using System;
 using System.Threading;
@@ -9,9 +7,7 @@ using System.Threading.Tasks;
 
 namespace Application.Events
 {
-    public class SendOrderConfirmationEmailHandler : 
-        IDomainEventHandler<OrderConfirmedDomainEvent>,
-        IDomainEventHandler<PaymentConfirmedDomainEvent>
+    public class SendOrderConfirmationEmailHandler : IDomainEventHandler<OrderConfirmedDomainEvent>
     {
         private readonly INotificationService _notificationService;
 
@@ -21,14 +17,6 @@ namespace Application.Events
         }
 
         public async Task HandleAsync(OrderConfirmedDomainEvent domainEvent, CancellationToken cancellationToken)
-        {
-            if (domainEvent.Order.PaymentMethod == PaymentMethod.COD)
-            {
-                await _notificationService.SendOrderConfirmationAsync(domainEvent.Order);
-            }
-        }
-
-        public async Task HandleAsync(PaymentConfirmedDomainEvent domainEvent, CancellationToken cancellationToken)
         {
             await _notificationService.SendOrderConfirmationAsync(domainEvent.Order);
         }
