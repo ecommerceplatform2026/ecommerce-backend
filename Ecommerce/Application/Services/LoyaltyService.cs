@@ -39,6 +39,11 @@ namespace Application.Services
             if (orderId == Guid.Empty)
                 return Result<int>.Failure("Order ID cannot be empty.");
 
+            var existingEarn = await _unitOfWork.GetRepository<LoyaltyTransaction>()
+                .FindAsync(t => t.OrderId == orderId && t.Type == LoyaltyTransactionType.Earn, asNoTracking: true, cancellationToken);
+            if (existingEarn != null)
+                return Result<int>.Success(0);
+
             var order = await _unitOfWork.GetRepository<Order>()
                 .FindAsync(
                     o => o.Id == orderId && !o.IsDeleted,
