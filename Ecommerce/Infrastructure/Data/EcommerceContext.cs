@@ -30,6 +30,7 @@ namespace Infrastructure.Data
         public DbSet<Delivery> Deliveries { get; set; }
         public DbSet<WishlistItem> WishlistItems { get; set; }
         public DbSet<RecentlyViewedProduct> RecentlyViewedProducts { get; set; }
+        public DbSet<OutboxMessage> OutboxMessages { get; set; }
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
