@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 namespace Application.Events
 {
     public class CreateDeliveryOnOrderConfirmedHandler
-        : IDomainEventHandler<OrderConfirmedDomainEvent>
+        : IIntegrationEventHandler<OrderConfirmedDomainEvent>
     {
         private readonly IShippingService _shippingService;
         private readonly ShippingSettings _settings;

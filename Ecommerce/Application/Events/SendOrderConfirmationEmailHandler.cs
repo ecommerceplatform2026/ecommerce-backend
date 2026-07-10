@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Application.Events
 {
-    public class SendOrderConfirmationEmailHandler : IDomainEventHandler<OrderConfirmedDomainEvent>
+    public class SendOrderConfirmationEmailHandler : IIntegrationEventHandler<OrderConfirmedDomainEvent>
     {
         private readonly INotificationService _notificationService;
 

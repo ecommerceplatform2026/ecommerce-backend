@@ -4,7 +4,7 @@ using System;
 
 namespace Domain.Events
 {
-    public class OrderConfirmedDomainEvent : IDomainEvent
+    public class OrderConfirmedDomainEvent : IDomainEvent, IIntegrationEvent
     {
         public Order Order { get; }
         public DateTime OccurredOn { get; } = DateTime.UtcNow;

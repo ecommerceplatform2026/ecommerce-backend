@@ -40,12 +40,12 @@ namespace Domain.Common
             DeletedBy = null;
         }
 
-        private readonly List<IDomainEvent> _domainEvents = new();
-        public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+        private readonly List<IEvent> _domainEvents = new();
+        public IReadOnlyCollection<IEvent> DomainEvents => _domainEvents.AsReadOnly();
 
-        protected void AddDomainEvent(IDomainEvent domainEvent)
+        protected void AddDomainEvent(IEvent @event)
         {
-            _domainEvents.Add(domainEvent);
+            _domainEvents.Add(@event);
         }
 
         public void ClearDomainEvents()

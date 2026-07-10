@@ -83,21 +83,28 @@ namespace Infrastructure.DependencyInjection
             services.AddHostedService<PointsExpiryBackgroundService>();
             services.AddHostedService<ViewHistoryCleanupBackgroundService>();
 
-            // Domain Event Publisher & Dynamic Handlers Scanning
+            // Domain Event Publisher
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
-            
+            services.AddScoped<IIntegrationEventPublisher, OutboxPublisher>();
+
+            // Dynamic Handlers Scanning
             var handlerAssembly = typeof(IDomainEventHandler<>).Assembly;
-            var handlerTypes = handlerAssembly.GetTypes()
-                .Where(t => !t.IsAbstract && !t.IsInterface && t.GetInterfaces()
-                    .Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>)))
+            var allTypes = handlerAssembly.GetTypes()
+                .Where(t => !t.IsAbstract && !t.IsInterface)
                 .ToList();
 
-            foreach (var handlerType in handlerTypes)
+            foreach (var handlerType in allTypes)
             {
-                var interfaces = handlerType.GetInterfaces()
+                var domainInterfaces = handlerType.GetInterfaces()
                     .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDomainEventHandler<>));
+                foreach (var @interface in domainInterfaces)
+                {
+                    services.AddScoped(@interface, handlerType);
+                }
 
-                foreach (var @interface in interfaces)
+                var integrationInterfaces = handlerType.GetInterfaces()
+                    .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IIntegrationEventHandler<>));
+                foreach (var @interface in integrationInterfaces)
                 {
                     services.AddScoped(@interface, handlerType);
                 }

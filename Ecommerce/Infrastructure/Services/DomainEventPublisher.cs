@@ -16,11 +16,11 @@ namespace Infrastructure.Services
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         }
 
-        public async Task PublishAsync(IDomainEvent domainEvent, CancellationToken cancellationToken = default)
+        public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
         {
-            if (domainEvent == null) return;
+            if (@event is not IDomainEvent) return;
 
-            var handlerType = typeof(IDomainEventHandler<>).MakeGenericType(domainEvent.GetType());
+            var handlerType = typeof(IDomainEventHandler<>).MakeGenericType(@event.GetType());
             var handlers = _serviceProvider.GetServices(handlerType);
 
             foreach (var handler in handlers)
@@ -30,7 +30,7 @@ namespace Infrastructure.Services
                     var method = handlerType.GetMethod(nameof(IDomainEventHandler<IDomainEvent>.HandleAsync));
                     if (method != null)
                     {
-                        var task = (Task)method.Invoke(handler, new object[] { domainEvent, cancellationToken })!;
+                        var task = (Task)method.Invoke(handler, new object[] { @event, cancellationToken })!;
                         await task;
                     }
                 }

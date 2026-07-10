@@ -2,14 +2,12 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Events;
 using Application.Common.Exceptions;
 using Domain.Common;
-using Domain.Entities;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,12 +17,14 @@ namespace Infrastructure.Repositories.Base
     {
         private readonly EcommerceContext _context;
         private readonly IDomainEventPublisher _publisher;
+        private readonly IIntegrationEventPublisher _integrationPublisher;
         private readonly Dictionary<Type, object> _repositories = new();
 
-        public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher)
+        public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher, IIntegrationEventPublisher integrationPublisher)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+            _integrationPublisher = integrationPublisher ?? throw new ArgumentNullException(nameof(integrationPublisher));
         }
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
@@ -50,6 +50,12 @@ namespace Infrastructure.Repositories.Base
                 .SelectMany(x => x.Entity.DomainEvents)
                 .ToList();
 
+            foreach (var domainEvent in domainEvents)
+            {
+                await _publisher.PublishAsync(domainEvent, cancellationToken);
+                await _integrationPublisher.PublishAsync(domainEvent, cancellationToken);
+            }
+
             int result;
             try
             {
@@ -62,11 +68,6 @@ namespace Infrastructure.Repositories.Base
                 var entryDetails = string.Join("; ", entries.Take(maxEntriesToShow));
                 var moreSuffix = entries.Count > maxEntriesToShow ? $" (+{entries.Count - maxEntriesToShow} more)" : string.Empty;
                 throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}{moreSuffix}", ex);
-            }
-
-            foreach (var domainEvent in domainEvents)
-            {
-                await _publisher.PublishAsync(domainEvent, cancellationToken);
             }
 
             foreach (var entity in domainEntities)

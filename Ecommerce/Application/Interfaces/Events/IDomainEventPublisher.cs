@@ -6,6 +6,6 @@ namespace Application.Interfaces.Events
 {
     public interface IDomainEventPublisher
     {
-        Task PublishAsync(IDomainEvent domainEvent, CancellationToken cancellationToken = default);
+        Task PublishAsync(IEvent domainEvent, CancellationToken cancellationToken = default);
     }
 }
