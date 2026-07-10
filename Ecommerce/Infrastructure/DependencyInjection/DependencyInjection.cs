@@ -82,6 +82,7 @@ namespace Infrastructure.DependencyInjection
             services.AddHostedService<DeliveredOrdersCompletionBackgroundService>();
             services.AddHostedService<PointsExpiryBackgroundService>();
             services.AddHostedService<ViewHistoryCleanupBackgroundService>();
+            services.AddHostedService<OutboxBackgroundService>();
 
             // Domain Event Publisher
             services.AddScoped<IDomainEventPublisher, DomainEventPublisher>();
