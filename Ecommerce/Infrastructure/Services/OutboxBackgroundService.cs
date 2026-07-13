@@ -23,6 +23,7 @@ namespace Infrastructure.Services
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<OutboxBackgroundService> _logger;
         private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
+        private static readonly TimeSpan HandlerTimeout = TimeSpan.FromSeconds(10);
         private const int MaxRetries = 5;
         private static readonly JsonSerializerSettings JsonSettings = new()
         {
@@ -90,30 +91,38 @@ namespace Infrastructure.Services
             using var scope = _scopeFactory.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<EcommerceContext>();
 
-            var messages = await context.OutboxMessages
+            var message = await context.OutboxMessages
                 .Where(m => m.ProcessedAt == null && m.RetryCount < MaxRetries)
                 .OrderBy(m => m.CreatedAt)
-                .Take(10)
-                .ToListAsync(ct);
+                .FirstOrDefaultAsync(ct);
 
-            foreach (var message in messages)
+            if (message == null) return;
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeoutCts.CancelAfter(HandlerTimeout);
+            var timeoutToken = timeoutCts.Token;
+
+            try
             {
-                try
-                {
-                    await ProcessMessageAsync(message, scope, ct);
-                    message.ProcessedAt = DateTime.UtcNow;
-                }
-                catch (Exception ex)
-                {
-                    message.RetryCount++;
-                    message.LastError = ex.ToString();
-                    _logger.LogWarning(ex,
-                        "Failed to process message {MessageId} (attempt {RetryCount}/{MaxRetries})",
-                        message.Id, message.RetryCount, MaxRetries);
-                }
-
-                await context.SaveChangesAsync(ct);
+                await ProcessMessageAsync(message, scope, timeoutToken);
+                message.ProcessedAt = DateTime.UtcNow;
             }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Handler timed out for message {MessageId}", message.Id);
+                message.RetryCount++;
+                message.LastError = $"Handler timed out after {HandlerTimeout.TotalSeconds}s";
+            }
+            catch (Exception ex)
+            {
+                message.RetryCount++;
+                message.LastError = ex.ToString();
+                _logger.LogWarning(ex,
+                    "Failed to process message {MessageId} (attempt {RetryCount}/{MaxRetries})",
+                    message.Id, message.RetryCount, MaxRetries);
+            }
+
+            await context.SaveChangesAsync(ct);
         }
 
         private async Task ProcessMessageAsync(OutboxMessage message, IServiceScope scope, CancellationToken ct)
