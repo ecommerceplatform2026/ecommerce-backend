@@ -15,42 +15,45 @@ namespace Presentation.Controllers
             _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
         }
 
-        [HttpGet("vnpay-return")]
-        public async Task<IActionResult> VnPayReturn(CancellationToken cancellationToken)
+        [HttpGet("vnpay/callback")]
+        public async Task<IActionResult> VnPayCallback(CancellationToken cancellationToken)
         {
             var queryParams = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
             var result = await _paymentService.ProcessVnPayCallbackAsync(queryParams, cancellationToken);
-            return this.FromResult(result);
+
+            return Ok(new
+            {
+                RspCode = result.IsSuccess ? "00" : "99",
+                Message = result.IsSuccess ? "success" : "unknown error"
+            });
         }
 
         [HttpPost("momo/callback")]
-        public async Task<IActionResult> MomoCallback([FromBody] Dictionary<string, string> requestBody, CancellationToken cancellationToken)
+        public async Task<IActionResult> MomoCallback(
+            [FromBody] Dictionary<string, string> body,
+            CancellationToken cancellationToken)
         {
-            var result = await _paymentService.ProcessMomoCallbackAsync(requestBody, cancellationToken);
-            return this.FromResult(result);
-        }
+            var result = await _paymentService.ProcessMomoCallbackAsync(body, cancellationToken);
 
-        [HttpGet("momo/callback")]
-        public async Task<IActionResult> MomoCallbackGet(CancellationToken cancellationToken)
-        {
-            var queryParams = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
-            var result = await _paymentService.ProcessMomoCallbackAsync(queryParams, cancellationToken);
-            return this.FromResult(result);
+            return Ok(new
+            {
+                resultCode = result.IsSuccess ? 0 : 99,
+                message = result.IsSuccess ? "OK" : "Error"
+            });
         }
 
         [HttpPost("zalopay/callback")]
-        public async Task<IActionResult> ZaloPayCallback([FromBody] Dictionary<string, string> requestBody, CancellationToken cancellationToken)
+        public async Task<IActionResult> ZaloPayCallback(
+            [FromBody] Dictionary<string, string> body,
+            CancellationToken cancellationToken)
         {
-            var result = await _paymentService.ProcessZaloPayCallbackAsync(requestBody, cancellationToken);
-            return this.FromResult(result);
-        }
+            var result = await _paymentService.ProcessZaloPayCallbackAsync(body, cancellationToken);
 
-        [HttpGet("zalopay/callback")]
-        public async Task<IActionResult> ZaloPayCallbackGet(CancellationToken cancellationToken)
-        {
-            var queryParams = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
-            var result = await _paymentService.ProcessZaloPayCallbackAsync(queryParams, cancellationToken);
-            return this.FromResult(result);
+            return Ok(new
+            {
+                return_code = result.IsSuccess ? 1 : 0,
+                return_message = result.IsSuccess ? "success" : "failed"
+            });
         }
 
         [HttpGet("{orderCode:int}/status")]
