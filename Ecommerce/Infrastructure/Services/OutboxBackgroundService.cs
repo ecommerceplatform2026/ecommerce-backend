@@ -106,6 +106,8 @@ namespace Infrastructure.Services
             {
                 await ProcessMessageAsync(message, scope, timeoutToken);
                 message.ProcessedAt = DateTime.UtcNow;
+                await context.SaveChangesAsync(ct);
+                return;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
