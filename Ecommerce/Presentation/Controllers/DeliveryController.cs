@@ -1,3 +1,4 @@
+using Application.DTOs.Delivery;
 using Application.DTOs.Delivery.GHN;
 using Application.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -13,6 +14,7 @@ namespace Presentation.Controllers
 {
     [Route("api/delivery")]
     [ApiController]
+    [Authorize(Roles = "Admin")]
     public class DeliveryController : ControllerBase
     {
         private readonly IShippingService _shippingService;
@@ -26,13 +28,30 @@ namespace Presentation.Controllers
             _handlers = handlers ?? throw new ArgumentNullException(nameof(handlers));
         }
 
-        [HttpPost("{orderId:guid}")]
+        [HttpPost]
         public async Task<IActionResult> CreateShipment(
-            Guid orderId,
-            [FromQuery] string carrier = "GHN",
+            [FromBody] CreateShipmentRequest request,
             CancellationToken cancellationToken = default)
         {
-            var result = await _shippingService.CreateShipmentAsync(orderId, carrier, cancellationToken);
+            var result = await _shippingService.CreateShipmentAsync(request, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpPost("retry")]
+        public async Task<IActionResult> RetryShipment(
+            [FromBody] RetryShipmentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _shippingService.RetryShipmentAsync(request.DeliveryId, cancellationToken);
+            return this.FromResult(result);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetDeliveries(
+            [FromQuery] GetShipmentRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _shippingService.GetDeliveriesAsync(request, cancellationToken);
             return this.FromResult(result);
         }
 

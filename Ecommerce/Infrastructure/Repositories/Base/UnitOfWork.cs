@@ -20,7 +20,6 @@ namespace Infrastructure.Repositories.Base
         private readonly EcommerceContext _context;
         private readonly IDomainEventPublisher _publisher;
         private readonly Dictionary<Type, object> _repositories = new();
-        private readonly List<IDomainEvent> _pendingDomainEvents = new();
 
         public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher)
         {
@@ -65,38 +64,17 @@ namespace Infrastructure.Repositories.Base
                 throw new ConcurrencyException($"A concurrency conflict occurred while saving changes. Entities involved: {entryDetails}{moreSuffix}", ex);
             }
 
-            if (HasActiveTransaction)
-            {
-                _pendingDomainEvents.AddRange(domainEvents);
-
-                foreach (var entity in domainEntities)
-                {
-                    entity.Entity.ClearDomainEvents();
-                }
-            }
-            else
-            {
-                foreach (var domainEvent in domainEvents)
-                {
-                    await _publisher.PublishAsync(domainEvent, cancellationToken);
-                }
-
-                foreach (var entity in domainEntities)
-                {
-                    entity.Entity.ClearDomainEvents();
-                }
-            }
-
-            return result;
-        }
-
-        private async Task PublishPendingDomainEventsAsync(CancellationToken cancellationToken = default)
-        {
-            foreach (var domainEvent in _pendingDomainEvents)
+            foreach (var domainEvent in domainEvents)
             {
                 await _publisher.PublishAsync(domainEvent, cancellationToken);
             }
-            _pendingDomainEvents.Clear();
+
+            foreach (var entity in domainEntities)
+            {
+                entity.Entity.ClearDomainEvents();
+            }
+
+            return result;
         }
 
         public bool HasActiveTransaction => _context.Database.CurrentTransaction != null;
@@ -104,10 +82,7 @@ namespace Infrastructure.Repositories.Base
         public async Task<ITransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-            return new EfTransaction(
-                transaction,
-                onCommit: ct => PublishPendingDomainEventsAsync(ct),
-                onRollback: ct => { _pendingDomainEvents.Clear(); return Task.CompletedTask; });
+            return new EfTransaction(transaction);
         }
         
         public void ClearTracker()

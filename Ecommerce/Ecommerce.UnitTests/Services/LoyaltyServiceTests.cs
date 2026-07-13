@@ -204,6 +204,8 @@ namespace Ecommerce.UnitTests.Services
             redeemTx.Status.Should().Be(LoyaltyTransactionStatus.Completed);
             account.PendingPoints.Should().Be(0);
             account.AvailablePoints.Should().Be(2);
+            account.TotalEarn.Should().Be(2);
+            account.TotalRedeem.Should().Be(300);
         }
 
         [Fact]

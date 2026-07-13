@@ -24,8 +24,8 @@ namespace Application.Events
                 throw new ArgumentNullException(nameof(domainEvent));
 
             var order = domainEvent.Order;
-            int? redeemedPoints = order.DiscountAmount > 0
-                ? (int)(order.DiscountAmount / ILoyaltyService.PointRedeemRate)
+            int? redeemedPoints = order.DiscountAmount.Amount > 0
+                ? (int)(order.DiscountAmount.Amount / ILoyaltyService.PointRedeemRate)
                 : null;
 
             await _loyaltyService.CreatePendingLoyaltyTransactionsAsync(order.Id, redeemedPoints, cancellationToken);

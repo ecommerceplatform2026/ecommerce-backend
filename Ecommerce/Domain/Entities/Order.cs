@@ -9,7 +9,7 @@ namespace Domain.Entities
     {
         public Guid UserId { get; private set; }
         public Money TotalAmount { get; private set; } = null!;
-        public long DiscountAmount { get; private set; }
+        public Money DiscountAmount { get; private set; } = null!;
         public OrderStatus Status { get; private set; }
         public int OrderCode { get; private set; }
         public PaymentMethod PaymentMethod { get; private set; }
@@ -35,7 +35,7 @@ namespace Domain.Entities
             PaymentMethod = paymentMethod;
             Status = OrderStatus.Pending;
             TotalAmount = Money.Zero("VND");
-            DiscountAmount = 0;
+            DiscountAmount = Money.Zero("VND");
         }
 
         public static Order Create(Guid userId, int orderCode, PaymentMethod paymentMethod)
@@ -61,7 +61,7 @@ namespace Domain.Entities
             if (discountAmount > TotalAmount.Amount)
                 throw new InvalidOperationException("Discount cannot exceed order total.");
 
-            DiscountAmount = discountAmount;
+            DiscountAmount = new Money(discountAmount);
         }
 
         public void MarkAsConfirmed()
