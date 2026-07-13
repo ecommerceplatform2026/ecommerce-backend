@@ -5,6 +5,7 @@ using Application.Interfaces.Repositories.Base;
 using Application.Interfaces.Services;
 using Domain.Entities;
 using Domain.Enums;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,21 +20,25 @@ namespace Application.Services
         private readonly IVnPayService _vnPayService;
         private readonly IMomoService _momoService;
         private readonly IZaloPayService _zaloPayService;
+        private readonly ILogger<PaymentService> _logger;
 
         public PaymentService(
             IUnitOfWork unitOfWork,
             IVnPayService vnPayService,
             IMomoService momoService,
-            IZaloPayService zaloPayService)
+            IZaloPayService zaloPayService,
+            ILogger<PaymentService> logger)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
             _vnPayService = vnPayService ?? throw new ArgumentNullException(nameof(vnPayService));
             _momoService = momoService ?? throw new ArgumentNullException(nameof(momoService));
             _zaloPayService = zaloPayService ?? throw new ArgumentNullException(nameof(zaloPayService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<Result<PaymentResponse>> ProcessVnPayCallbackAsync(IDictionary<string, string> queryParameters, CancellationToken cancellationToken = default)
         {
+            _logger.LogInformation("VNPay callback invoked with {ParamCount} parameters", queryParameters?.Count ?? 0);
             if (queryParameters == null || !queryParameters.Any())
             {
                 return Result<PaymentResponse>.Failure("Invalid query parameters.");
