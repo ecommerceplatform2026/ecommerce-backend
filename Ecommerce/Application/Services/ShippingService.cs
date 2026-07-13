@@ -267,6 +267,12 @@ namespace Application.Services
                 result.Value.ShippingFee);
 
             _unitOfWork.GetRepository<Delivery>().Update(delivery);
+
+            if (order.Status == OrderStatus.Pending || order.Status == OrderStatus.Confirmed)
+                order.MarkAsProcessing();
+
+            order.MarkAsShipping();
+            _unitOfWork.GetRepository<Order>().Update(order);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<ShipmentResponse>.Success(result.Value);
