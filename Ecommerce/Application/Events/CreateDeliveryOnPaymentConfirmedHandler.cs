@@ -3,7 +3,6 @@ using Application.DTOs.Delivery;
 using Application.Interfaces.Events;
 using Application.Interfaces.Services;
 using Domain.Events;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Threading;
@@ -16,35 +15,25 @@ namespace Application.Events
     {
         private readonly IShippingService _shippingService;
         private readonly ShippingSettings _settings;
-        private readonly ILogger<CreateDeliveryOnOrderConfirmedHandler> _logger;
 
         public CreateDeliveryOnOrderConfirmedHandler(
             IShippingService shippingService,
-            IOptions<ShippingSettings> settings,
-            ILogger<CreateDeliveryOnOrderConfirmedHandler> logger)
+            IOptions<ShippingSettings> settings)
         {
             _shippingService = shippingService ?? throw new ArgumentNullException(nameof(shippingService));
             _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task HandleAsync(OrderConfirmedDomainEvent domainEvent, CancellationToken cancellationToken)
         {
-            try
-            {
-                var result = await _shippingService.CreateShipmentAsync(
-                    new CreateShipmentRequest(domainEvent.Order.Id, _settings.DefaultCarrier),
-                    cancellationToken);
+            var result = await _shippingService.CreateShipmentAsync(
+                new CreateShipmentRequest(domainEvent.Order.Id, _settings.DefaultCarrier),
+                cancellationToken);
 
-                if (!result.IsSuccess)
-                {
-                    _logger.LogWarning("Auto-create delivery failed for order {OrderId}: {Errors}",
-                        domainEvent.Order.Id, string.Join("; ", result.Errors));
-                }
-            }
-            catch (Exception ex)
+            if (!result.IsSuccess)
             {
-                _logger.LogError(ex, "Auto-create delivery threw for order {OrderId}", domainEvent.Order.Id);
+                throw new InvalidOperationException(
+                    $"Auto-create delivery failed for order {domainEvent.Order.Id}: {string.Join("; ", result.Errors)}");
             }
         }
     }
