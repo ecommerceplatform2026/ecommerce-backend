@@ -111,18 +111,34 @@ namespace Infrastructure.Services
             var @event = (IEvent)JsonConvert.DeserializeObject(message.JsonContent, eventType, JsonSettings)!;
 
             var handlerType = typeof(IIntegrationEventHandler<>).MakeGenericType(eventType);
-            var handlers = scope.ServiceProvider.GetServices(handlerType);
+            var handlers = scope.ServiceProvider.GetServices(handlerType).ToList();
+
+            _logger.LogInformation("Processing outbox message {MessageId} for {EventType} with {HandlerCount} handler(s)",
+                message.Id, message.EventType, handlers.Count);
+
+            if (handlers.Count == 0)
+            {
+                _logger.LogWarning("No handlers registered for {HandlerType}", handlerType.FullName);
+            }
 
             foreach (var handler in handlers)
             {
                 var handleMethod = handlerType.GetMethod("HandleAsync");
-                if (handleMethod == null) continue;
+                if (handleMethod == null)
+                {
+                    _logger.LogWarning("HandleAsync not found on handler {HandlerType}", handler?.GetType().FullName);
+                    continue;
+                }
+
+                _logger.LogInformation("Invoking handler {HandlerType}", handler?.GetType().FullName);
 
                 await DefaultPipeline.ExecuteAsync(async cancel =>
                 {
                     var task = (Task)handleMethod.Invoke(handler, new object[] { @event, cancel })!;
                     await task;
                 }, ct);
+
+                _logger.LogInformation("Handler {HandlerType} completed", handler?.GetType().FullName);
             }
         }
     }
