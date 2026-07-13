@@ -182,7 +182,10 @@ namespace Application.Services
                 return Result<ShipmentResponse>.Failure($"Cannot retry delivery in '{delivery.Status}' status. Only Exception deliveries can be retried.");
 
             var order = await _unitOfWork.GetRepository<Order>()
-                .FindAsync(o => o.Id == delivery.OrderId && !o.IsDeleted, asNoTracking: false, cancellationToken);
+                .FindAsync(o => o.Id == delivery.OrderId && !o.IsDeleted, asNoTracking: false, cancellationToken,
+                    o => o.OrderItems,
+                    o => o.User!,
+                    o => o.User!.UserAddresses);
 
             if (order == null)
                 return Result<ShipmentResponse>.NotFound("Order not found.");

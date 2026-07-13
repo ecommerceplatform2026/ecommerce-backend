@@ -1,5 +1,5 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -19,6 +19,9 @@ namespace Infrastructure.Services
         {
             _httpClient = httpClient;
             _settings = options.Value;
+            var authBytes = Encoding.UTF8.GetBytes($"{_settings.ApiKey}:{_settings.ApiSecret}");
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
         }
 
         public async Task<ProductImageUploadResult> UploadAsync(
@@ -29,19 +32,9 @@ namespace Infrastructure.Services
         {
             EnsureConfigured();
 
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-            var signature = CreateSignature(new Dictionary<string, string>
-            {
-                ["folder"] = _settings.Folder,
-                ["timestamp"] = timestamp
-            });
-
             using var content = new MultipartFormDataContent
             {
-                { new StringContent(_settings.ApiKey), "api_key" },
-                { new StringContent(timestamp), "timestamp" },
-                { new StringContent(_settings.Folder), "folder" },
-                { new StringContent(signature), "signature" }
+                { new StringContent(_settings.Folder), "folder" }
             };
 
             var fileContent = new StreamContent(imageStream);
@@ -78,19 +71,9 @@ namespace Infrastructure.Services
             if (string.IsNullOrWhiteSpace(publicId))
                 throw new InvalidOperationException("Cloudinary public id is required.");
 
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-            var signature = CreateSignature(new Dictionary<string, string>
-            {
-                ["public_id"] = publicId,
-                ["timestamp"] = timestamp
-            });
-
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["api_key"] = _settings.ApiKey,
-                ["timestamp"] = timestamp,
-                ["public_id"] = publicId,
-                ["signature"] = signature
+                ["public_id"] = publicId
             });
 
             using var response = await _httpClient.PostAsync(
@@ -133,19 +116,6 @@ namespace Infrastructure.Services
             {
                 throw new InvalidOperationException(failureMessage, ex);
             }
-        }
-
-        private string CreateSignature(IReadOnlyDictionary<string, string> parameters)
-        {
-            var payload = string.Join(
-                "&",
-                parameters
-                    .Where(parameter => !string.IsNullOrWhiteSpace(parameter.Value))
-                    .OrderBy(parameter => parameter.Key, StringComparer.Ordinal)
-                    .Select(parameter => $"{parameter.Key}={parameter.Value}"));
-
-            var bytes = SHA1.HashData(Encoding.UTF8.GetBytes(payload + _settings.ApiSecret));
-            return Convert.ToHexString(bytes).ToLowerInvariant();
         }
 
         private sealed class CloudinaryUploadResponse

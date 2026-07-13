@@ -39,6 +39,11 @@ namespace Application.Services
             if (orderId == Guid.Empty)
                 return Result<int>.Failure("Order ID cannot be empty.");
 
+            var existingEarn = await _unitOfWork.GetRepository<LoyaltyTransaction>()
+                .FindAsync(t => t.OrderId == orderId && t.Type == LoyaltyTransactionType.Earn, asNoTracking: true, cancellationToken);
+            if (existingEarn != null)
+                return Result<int>.Success(0);
+
             var order = await _unitOfWork.GetRepository<Order>()
                 .FindAsync(
                     o => o.Id == orderId && !o.IsDeleted,
@@ -288,19 +293,19 @@ namespace Application.Services
                         LastUpdated: DateTime.UtcNow));
             }
 
-            var totalBalance = account.AvailablePoints + account.PendingPoints;
+            var balance = account.AvailablePoints;
             
             // Handle negative balance edge case
-            if (totalBalance < 0)
+            if (balance < 0)
             {
-                totalBalance = 0;
+                balance = 0;
             }
 
-            var vndEquivalent = (long)(totalBalance * ILoyaltyService.PointRedeemRate);
+            var vndEquivalent = (long)(balance * ILoyaltyService.PointRedeemRate);
 
             return Result<GetLoyaltyBalanceResponse>.Success(
                 new GetLoyaltyBalanceResponse(
-                    Balance: totalBalance,
+                    Balance: balance,
                     PendingPoints: account.PendingPoints,
                     TotalEarned: account.TotalEarn,
                     TotalRedeemed: account.TotalRedeem,

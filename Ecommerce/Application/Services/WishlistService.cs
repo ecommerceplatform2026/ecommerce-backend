@@ -123,14 +123,20 @@ namespace Application.Services
             var userId = userResult.Value;
 
             var existingItem = await _unitOfWork.GetRepository<WishlistItem>()
-                .FindAsync(
+                .FindIgnoreQueryFiltersAsync(
                     w => w.UserId == userId && w.ProductVariantId == request.ProductVariantId,
-                    true,
+                    false,
                     cancellationToken);
 
             if (existingItem != null)
             {
-                // Duplicate prevention: return success with existing item
+                if (existingItem.IsDeleted)
+                {
+                    existingItem.Restore();
+                    _unitOfWork.GetRepository<WishlistItem>().Update(existingItem);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
                 var savedItem = await _unitOfWork.GetRepository<WishlistItem>()
                     .FindAsync(
                         w => w.Id == existingItem.Id,
@@ -157,9 +163,9 @@ namespace Application.Services
             {
                 // Handle concurrency or duplicate insertions from race conditions
                 var itemFromDb = await _unitOfWork.GetRepository<WishlistItem>()
-                    .FindAsync(
+                    .FindIgnoreQueryFiltersAsync(
                         w => w.UserId == userId && w.ProductVariantId == request.ProductVariantId,
-                        true,
+                        false,
                         cancellationToken,
                         w => w.ProductVariant!,
                         w => w.ProductVariant!.Product!,
@@ -167,6 +173,13 @@ namespace Application.Services
 
                 if (itemFromDb != null)
                 {
+                    if (itemFromDb.IsDeleted)
+                    {
+                        itemFromDb.Restore();
+                        _unitOfWork.GetRepository<WishlistItem>().Update(itemFromDb);
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    }
+
                     return Result<WishlistItemResponse>.Success(MapToResponse(itemFromDb));
                 }
 
@@ -317,22 +330,33 @@ namespace Application.Services
             }
 
             var existingCartItem = await _unitOfWork.GetRepository<CartItem>()
-                .FindAsync(
+                .FindIgnoreQueryFiltersAsync(
                     ci => ci.UserId == userId && ci.ProductVariantId == variantId,
-                    asNoTracking: false,
+                    false,
                     cancellationToken);
 
-            var targetQuantity = 1 + (existingCartItem?.Quantity ?? 0);
+            var isRestoring = existingCartItem != null && existingCartItem.IsDeleted;
+            var targetQuantity = 1 + (isRestoring ? 0 : (existingCartItem?.Quantity ?? 0));
 
             if (variant.IsOutOfStock() || variant.Stock < targetQuantity)
             {
                 return Result<CartItemResponse>.Failure($"Insufficient stock available. Maximum available stock is {variant.Stock}.");
             }
 
+            CartItem savedCartItem;
             if (existingCartItem != null)
             {
-                existingCartItem.Quantity = targetQuantity;
+                if (isRestoring)
+                {
+                    existingCartItem.Restore();
+                    existingCartItem.Quantity = 1;
+                }
+                else
+                {
+                    existingCartItem.Quantity = targetQuantity;
+                }
                 _unitOfWork.GetRepository<CartItem>().Update(existingCartItem);
+                savedCartItem = existingCartItem;
             }
             else
             {
@@ -343,22 +367,21 @@ namespace Application.Services
                     Quantity = 1
                 };
                 await _unitOfWork.GetRepository<CartItem>().AddAsync(newCartItem, cancellationToken);
+                savedCartItem = newCartItem;
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            var savedItemId = existingCartItem?.Id ??
-                (await _unitOfWork.GetRepository<CartItem>()
-                    .FindAsync(ci => ci.UserId == userId && ci.ProductVariantId == variantId, asNoTracking: true, cancellationToken))?.Id;
+            var savedItemId = savedCartItem.Id;
 
-            if (savedItemId == null)
+            if (savedItemId == Guid.Empty)
             {
-                return Result<CartItemResponse>.Failure("Failed to retrieve the updated cart item.");
+                return Result<CartItemResponse>.Failure("Failed to retrieve the saved cart item ID.");
             }
 
             var savedItem = await _unitOfWork.GetRepository<CartItem>()
                 .FindAsync(
-                    ci => ci.Id == savedItemId.Value,
+                    ci => ci.Id == savedItemId,
                     true,
                     cancellationToken,
                     ci => ci.ProductVariant!,
