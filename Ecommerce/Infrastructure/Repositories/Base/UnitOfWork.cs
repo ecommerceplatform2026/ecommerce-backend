@@ -5,6 +5,7 @@ using Domain.Common;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,13 +19,15 @@ namespace Infrastructure.Repositories.Base
         private readonly EcommerceContext _context;
         private readonly IDomainEventPublisher _publisher;
         private readonly IIntegrationEventPublisher _integrationPublisher;
+        private readonly ILogger<UnitOfWork> _logger;
         private readonly Dictionary<Type, object> _repositories = new();
 
-        public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher, IIntegrationEventPublisher integrationPublisher)
+        public UnitOfWork(EcommerceContext context, IDomainEventPublisher publisher, IIntegrationEventPublisher integrationPublisher, ILogger<UnitOfWork> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
             _integrationPublisher = integrationPublisher ?? throw new ArgumentNullException(nameof(integrationPublisher));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
         public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
         {
@@ -50,16 +53,30 @@ namespace Infrastructure.Repositories.Base
                 .SelectMany(x => x.Entity.DomainEvents)
                 .ToList();
 
-            foreach (var domainEvent in domainEvents)
+            if (domainEvents.Count > 0)
             {
-                await _publisher.PublishAsync(domainEvent, cancellationToken);
-                await _integrationPublisher.PublishAsync(domainEvent, cancellationToken);
+                _logger.LogInformation("SaveChangesAsync: publishing {Count} domain event(s): {Events}",
+                    domainEvents.Count,
+                    string.Join(", ", domainEvents.Select(e => e.GetType().Name)));
             }
 
+            foreach (var domainEvent in domainEvents)
+            {
+                _logger.LogInformation("SaveChangesAsync: publishing domain event {EventType}", domainEvent.GetType().Name);
+                await _publisher.PublishAsync(domainEvent, cancellationToken);
+                _logger.LogInformation("SaveChangesAsync: domain event {EventType} published successfully", domainEvent.GetType().Name);
+
+                _logger.LogInformation("SaveChangesAsync: publishing integration event {EventType}", domainEvent.GetType().Name);
+                await _integrationPublisher.PublishAsync(domainEvent, cancellationToken);
+                _logger.LogInformation("SaveChangesAsync: integration event {EventType} published successfully", domainEvent.GetType().Name);
+            }
+
+            _logger.LogInformation("SaveChangesAsync: calling _context.SaveChangesAsync");
             int result;
             try
             {
                 result = await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("SaveChangesAsync: _context.SaveChangesAsync succeeded, result={Result}", result);
             }
             catch (DbUpdateConcurrencyException ex)
             {
