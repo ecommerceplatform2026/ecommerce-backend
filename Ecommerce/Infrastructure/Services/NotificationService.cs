@@ -102,86 +102,79 @@ namespace Infrastructure.Services
         {
             if (order == null) return;
 
-            try
+            var user = order.User;
+            if (user == null)
             {
-                var user = order.User;
-                if (user == null)
-                {
-                    user = await _unitOfWork.GetRepository<User>().GetByIdAsync(order.UserId);
-                }
-
-                if (user == null)
-                {
-                    _logger.LogWarning("User not found for order #{OrderCode}. Order confirmation email skipped.", order.OrderCode);
-                    return;
-                }
-
-                var recipientName = user.FullName;
-                var recipientEmail = user.Email;
-
-                var (itemsHtml, itemsText) = await RenderOrderItemsAsync(order);
-
-                var htmlBody = await GetEmailBodyAsync("OrderConfirmation", new()
-                {
-                    ["{RecipientName}"] = WebUtility.HtmlEncode(recipientName),
-                    ["{OrderCode}"] = WebUtility.HtmlEncode(order.OrderCode.ToString()),
-                    ["{OrderDate}"] = WebUtility.HtmlEncode(order.CreatedAt.ToString()),
-                    ["{PaymentMethod}"] = WebUtility.HtmlEncode(order.PaymentMethod.ToString()),
-                    ["{OrderStatus}"] = WebUtility.HtmlEncode(order.Status.ToString()),
-                    ["{TotalAmount}"] = WebUtility.HtmlEncode(order.TotalAmount.Amount.ToString("N0")),
-                    ["{ItemsHtml}"] = itemsHtml
-                }, isHtml: true);
-
-                var textContent = await GetEmailBodyAsync("OrderConfirmation", new()
-                {
-                    ["{CurrentDate}"] = DateTime.Now.ToString(),
-                    ["{RecipientName}"] = recipientName,
-                    ["{RecipientEmail}"] = recipientEmail,
-                    ["{OrderCode}"] = order.OrderCode.ToString(),
-                    ["{OrderDate}"] = order.CreatedAt.ToString(),
-                    ["{PaymentMethod}"] = order.PaymentMethod.ToString(),
-                    ["{OrderStatus}"] = order.Status.ToString(),
-                    ["{TotalAmount}"] = order.TotalAmount.Amount.ToString("N0"),
-                    ["{ItemsText}"] = itemsText
-                }, isHtml: false);
-
-                if (string.IsNullOrWhiteSpace(_mailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_mailSettings.From))
-                {
-                    _logger.LogWarning("SMTP settings are not configured. Skipped sending email to {Email}, printed to emails.log instead.", recipientEmail);
-                    await AppendEmailLogFileAsync(textContent);
-                    return;
-                }
-
-                _logger.LogInformation("Sending SMTP email confirmation to {Email} for order #{OrderCode}", recipientEmail, order.OrderCode);
-
-                using var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(_mailSettings.From, _mailSettings.FromName),
-                    Subject = $"Order Confirmation - Order #{order.OrderCode}",
-                    Body = htmlBody,
-                    IsBodyHtml = true
-                };
-                mailMessage.To.Add(new MailAddress(recipientEmail, recipientName));
-
-                int smtpPort = 587;
-                if (int.TryParse(_mailSettings.Port, out var parsedPort) && parsedPort > 0)
-                {
-                    smtpPort = parsedPort;
-                }
-
-                using var smtpClient = new SmtpClient(_mailSettings.SmtpServer, smtpPort)
-                {
-                    Credentials = new NetworkCredential(_mailSettings.From, _mailSettings.Password),
-                    EnableSsl = _mailSettings.EnableSsl
-                };
-
-                await smtpClient.SendMailAsync(mailMessage);
-                _logger.LogInformation("Successfully sent email confirmation to {Email} for order #{OrderCode}", recipientEmail, order.OrderCode);
+                user = await _unitOfWork.GetRepository<User>().GetByIdAsync(order.UserId);
             }
-            catch (Exception ex)
+
+            if (user == null)
             {
-                _logger.LogError(ex, "Failed to send order confirmation email for order code {OrderCode}", order.OrderCode);
+                _logger.LogWarning("User not found for order #{OrderCode}. Order confirmation email skipped.", order.OrderCode);
+                return;
             }
+
+            var recipientName = user.FullName;
+            var recipientEmail = user.Email;
+
+            var (itemsHtml, itemsText) = await RenderOrderItemsAsync(order);
+
+            var htmlBody = await GetEmailBodyAsync("OrderConfirmation", new()
+            {
+                ["{RecipientName}"] = WebUtility.HtmlEncode(recipientName),
+                ["{OrderCode}"] = WebUtility.HtmlEncode(order.OrderCode.ToString()),
+                ["{OrderDate}"] = WebUtility.HtmlEncode(order.CreatedAt.ToString()),
+                ["{PaymentMethod}"] = WebUtility.HtmlEncode(order.PaymentMethod.ToString()),
+                ["{OrderStatus}"] = WebUtility.HtmlEncode(order.Status.ToString()),
+                ["{TotalAmount}"] = WebUtility.HtmlEncode(order.TotalAmount.Amount.ToString("N0")),
+                ["{ItemsHtml}"] = itemsHtml
+            }, isHtml: true);
+
+            var textContent = await GetEmailBodyAsync("OrderConfirmation", new()
+            {
+                ["{CurrentDate}"] = DateTime.Now.ToString(),
+                ["{RecipientName}"] = recipientName,
+                ["{RecipientEmail}"] = recipientEmail,
+                ["{OrderCode}"] = order.OrderCode.ToString(),
+                ["{OrderDate}"] = order.CreatedAt.ToString(),
+                ["{PaymentMethod}"] = order.PaymentMethod.ToString(),
+                ["{OrderStatus}"] = order.Status.ToString(),
+                ["{TotalAmount}"] = order.TotalAmount.Amount.ToString("N0"),
+                ["{ItemsText}"] = itemsText
+            }, isHtml: false);
+
+            if (string.IsNullOrWhiteSpace(_mailSettings.SmtpServer) || string.IsNullOrWhiteSpace(_mailSettings.From))
+            {
+                _logger.LogWarning("SMTP settings are not configured. Skipped sending email to {Email}, printed to emails.log instead.", recipientEmail);
+                await AppendEmailLogFileAsync(textContent);
+                return;
+            }
+
+            _logger.LogInformation("Sending SMTP email confirmation to {Email} for order #{OrderCode}", recipientEmail, order.OrderCode);
+
+            using var mailMessage = new MailMessage
+            {
+                From = new MailAddress(_mailSettings.From, _mailSettings.FromName),
+                Subject = $"Order Confirmation - Order #{order.OrderCode}",
+                Body = htmlBody,
+                IsBodyHtml = true
+            };
+            mailMessage.To.Add(new MailAddress(recipientEmail, recipientName));
+
+            int smtpPort = 587;
+            if (int.TryParse(_mailSettings.Port, out var parsedPort) && parsedPort > 0)
+            {
+                smtpPort = parsedPort;
+            }
+
+            using var smtpClient = new SmtpClient(_mailSettings.SmtpServer, smtpPort)
+            {
+                Credentials = new NetworkCredential(_mailSettings.From, _mailSettings.Password),
+                EnableSsl = _mailSettings.EnableSsl
+            };
+
+            await smtpClient.SendMailAsync(mailMessage);
+            _logger.LogInformation("Successfully sent email confirmation to {Email} for order #{OrderCode}", recipientEmail, order.OrderCode);
         }
 
         private async Task AppendEmailLogFileAsync(string emailContent)
