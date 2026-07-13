@@ -7,10 +7,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using Polly;
 using Polly.Retry;
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,7 +27,21 @@ namespace Infrastructure.Services
         private static readonly JsonSerializerSettings JsonSettings = new()
         {
             TypeNameHandling = TypeNameHandling.Auto,
+            ContractResolver = new PrivateSetterContractResolver(),
         };
+
+        private sealed class PrivateSetterContractResolver : DefaultContractResolver
+        {
+            protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
+            {
+                var prop = base.CreateProperty(member, memberSerialization);
+                if (!prop.Writable && member is PropertyInfo pi)
+                {
+                    prop.Writable = pi.GetSetMethod(true) != null;
+                }
+                return prop;
+            }
+        }
         private static readonly ResiliencePipeline DefaultPipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
