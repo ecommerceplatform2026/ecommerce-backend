@@ -23,7 +23,7 @@ namespace Infrastructure.Services
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<OutboxBackgroundService> _logger;
         private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
-        private static readonly TimeSpan HandlerTimeout = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan HandlerTimeout = TimeSpan.FromSeconds(30);
         private const int MaxRetries = 5;
         private static readonly JsonSerializerSettings JsonSettings = new()
         {
