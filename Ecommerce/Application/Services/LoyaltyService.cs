@@ -16,20 +16,13 @@ namespace Application.Services
 {
     public sealed class LoyaltyService : ILoyaltyService
     {
-
-
-        private const string EarnTransactionUniqueIndex = "IX_LoyaltyTransactions_OrderId_Type";
-
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IUniqueConstraintChecker _uniqueConstraintChecker;
         private readonly ICurrentUserService _currentUserService;
         public LoyaltyService(
             IUnitOfWork unitOfWork,
-            IUniqueConstraintChecker uniqueConstraintChecker,
             ICurrentUserService currentUserService)
         {
             _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
-            _uniqueConstraintChecker = uniqueConstraintChecker ?? throw new ArgumentNullException(nameof(uniqueConstraintChecker));
             _currentUserService = currentUserService ?? throw new ArgumentNullException(nameof(currentUserService));
         }
 
@@ -91,20 +84,10 @@ namespace Application.Services
                 await _unitOfWork.GetRepository<LoyaltyTransaction>().AddAsync(redeemTransaction, cancellationToken);
             }
 
-            try
-            {
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-            }
-            catch (Exception ex) when (_uniqueConstraintChecker.IsUniqueViolation(ex, EarnTransactionUniqueIndex))
-            {
-                return Result<int>.Success(totalEarned);
-            }
-
+            // ponytail: no SaveChangesAsync here — called from within
+            // UnitOfWork.SaveChangesAsync event pipeline, outer call persists all.
+            // Unique constraint enforcement deferred to outer SaveChangesAsync.
             var cancelled = await CancelPendingExpiredTransactionsAsync(account, cancellationToken);
-            if (cancelled)
-            {
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-            }
 
             return Result<int>.Success(earnPoints);
         }
