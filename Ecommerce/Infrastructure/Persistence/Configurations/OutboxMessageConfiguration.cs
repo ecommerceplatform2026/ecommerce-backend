@@ -11,6 +11,7 @@ namespace Infrastructure.Persistence.Configurations
             builder.HasKey(m => m.Id);
             builder.Property(m => m.EventType).IsRequired().HasMaxLength(500);
             builder.Property(m => m.JsonContent).IsRequired();
+            builder.Property(m => m.HandlerType).IsRequired().HasMaxLength(500);
             builder.Property(m => m.CreatedAt).IsRequired();
             builder.Property(m => m.ProcessedAt);
             builder.Property(m => m.RetryCount).IsRequired().HasDefaultValue(0);

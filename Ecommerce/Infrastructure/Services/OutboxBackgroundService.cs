@@ -137,36 +137,30 @@ namespace Infrastructure.Services
 
             var @event = (IEvent)JsonConvert.DeserializeObject(message.JsonContent, eventType, JsonSettings)!;
 
-            var handlerType = typeof(IIntegrationEventHandler<>).MakeGenericType(eventType);
-            var handlers = scope.ServiceProvider.GetServices(handlerType).ToList();
+            var handlerInterface = typeof(IIntegrationEventHandler<>).MakeGenericType(eventType);
+            var handler = scope.ServiceProvider.GetServices(handlerInterface)
+                .FirstOrDefault(h => h?.GetType().AssemblyQualifiedName == message.HandlerType);
 
-            _logger.LogInformation("Processing outbox message {MessageId} for {EventType} with {HandlerCount} handler(s)",
-                message.Id, message.EventType, handlers.Count);
-
-            if (handlers.Count == 0)
+            if (handler == null)
             {
-                _logger.LogWarning("No handlers registered for {HandlerType}", handlerType.FullName);
+                throw new InvalidOperationException($"Handler {message.HandlerType} not found for event {message.EventType}");
             }
 
-            foreach (var handler in handlers)
+            var handleMethod = handlerInterface.GetMethod("HandleAsync");
+            if (handleMethod == null)
             {
-                var handleMethod = handlerType.GetMethod("HandleAsync");
-                if (handleMethod == null)
-                {
-                    _logger.LogWarning("HandleAsync not found on handler {HandlerType}", handler?.GetType().FullName);
-                    continue;
-                }
-
-                _logger.LogInformation("Invoking handler {HandlerType}", handler?.GetType().FullName);
-
-                await DefaultPipeline.ExecuteAsync(async cancel =>
-                {
-                    var task = (Task)handleMethod.Invoke(handler, new object[] { @event, cancel })!;
-                    await task;
-                }, ct);
-
-                _logger.LogInformation("Handler {HandlerType} completed", handler?.GetType().FullName);
+                throw new InvalidOperationException($"HandleAsync not found on {handlerInterface.FullName}");
             }
+
+            _logger.LogInformation("Invoking handler {HandlerType} for message {MessageId}", handler.GetType().FullName, message.Id);
+
+            await DefaultPipeline.ExecuteAsync(async cancel =>
+            {
+                var task = (Task)handleMethod.Invoke(handler, new object[] { @event, cancel })!;
+                await task;
+            }, ct);
+
+            _logger.LogInformation("Handler {HandlerType} completed for message {MessageId}", handler.GetType().FullName, message.Id);
         }
     }
 }

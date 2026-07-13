@@ -7,6 +7,7 @@ namespace Domain.Entities
         public Guid Id { get; private set; }
         public string EventType { get; private set; } = string.Empty;
         public string JsonContent { get; private set; } = string.Empty;
+        public string HandlerType { get; private set; } = string.Empty;
         public DateTime CreatedAt { get; private set; }
         public DateTime? ProcessedAt { get; set; }
         public int RetryCount { get; set; }
@@ -14,11 +15,12 @@ namespace Domain.Entities
 
         private OutboxMessage() { }
 
-        public OutboxMessage(string eventType, string jsonContent)
+        public OutboxMessage(string eventType, string jsonContent, string handlerType)
         {
             Id = Guid.NewGuid();
             EventType = eventType;
             JsonContent = jsonContent;
+            HandlerType = handlerType;
             CreatedAt = DateTime.UtcNow;
             RetryCount = 0;
         }

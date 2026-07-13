@@ -90,6 +90,7 @@ namespace Infrastructure.DependencyInjection
 
             // Dynamic Handlers Scanning
             var handlerAssembly = typeof(IDomainEventHandler<>).Assembly;
+            services.AddSingleton(new IntegrationHandlerRegistry(handlerAssembly));
             var allTypes = handlerAssembly.GetTypes()
                 .Where(t => !t.IsAbstract && !t.IsInterface)
                 .ToList();
