@@ -168,21 +168,30 @@ namespace Application.Services
 
         private async Task<Result<PaymentResponse>> CompleteCallbackAsync(Payment paymentRecord, bool isSuccess, CancellationToken cancellationToken)
         {
+            _logger.LogInformation("CompleteCallbackAsync: Payment={PaymentId}, OrderCode={OrderCode}, isSuccess={IsSuccess}, OrderLoaded={OrderLoaded}",
+                paymentRecord.Id, paymentRecord.OrderCode, isSuccess, paymentRecord.Order != null);
+
             if (isSuccess)
             {
                 paymentRecord.Complete(DateTime.UtcNow);
 
                 if (paymentRecord.Order != null)
                 {
+                    _logger.LogInformation("CompleteCallbackAsync: calling Order.MarkAsConfirmed for OrderId={OrderId}, current status={Status}",
+                        paymentRecord.Order.Id, paymentRecord.Order.Status);
                     paymentRecord.Order.MarkAsConfirmed();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
                 }
             }
             else
             {
+                _logger.LogInformation("CompleteCallbackAsync: payment FAILED for PaymentId={PaymentId}, OrderCode={OrderCode}",
+                    paymentRecord.Id, paymentRecord.OrderCode);
                 paymentRecord.Fail();
                 if (paymentRecord.Order != null)
                 {
+                    _logger.LogInformation("CompleteCallbackAsync: calling Order.MarkAsCancelled for OrderId={OrderId}, current status={Status}",
+                        paymentRecord.Order.Id, paymentRecord.Order.Status);
                     paymentRecord.Order.MarkAsCancelled();
                     _unitOfWork.GetRepository<Order>().Update(paymentRecord.Order);
 
@@ -209,7 +218,18 @@ namespace Application.Services
             }
 
             _unitOfWork.GetRepository<Payment>().Update(paymentRecord);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("CompleteCallbackAsync: about to call SaveChangesAsync for PaymentId={PaymentId}", paymentRecord.Id);
+            try
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation("CompleteCallbackAsync: SaveChangesAsync succeeded for PaymentId={PaymentId}", paymentRecord.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CompleteCallbackAsync: SaveChangesAsync FAILED for PaymentId={PaymentId}", paymentRecord.Id);
+                throw;
+            }
 
             var responseDto = new PaymentResponse(
                 paymentRecord.Id,
