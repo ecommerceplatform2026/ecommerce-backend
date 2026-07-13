@@ -85,7 +85,7 @@ namespace Infrastructure.Services
 
                 using var smtpClient = new SmtpClient(_mailSettings.SmtpServer, smtpPort)
                 {
-                    Credentials = new NetworkCredential(_mailSettings.From, _mailSettings.Password),
+                    Credentials = new NetworkCredential(_mailSettings.UserName, _mailSettings.Password),
                     EnableSsl = _mailSettings.EnableSsl
                 };
 
@@ -169,7 +169,7 @@ namespace Infrastructure.Services
 
             using var smtpClient = new SmtpClient(_mailSettings.SmtpServer, smtpPort)
             {
-                Credentials = new NetworkCredential(_mailSettings.From, _mailSettings.Password),
+                Credentials = new NetworkCredential(_mailSettings.UserName, _mailSettings.Password),
                 EnableSsl = _mailSettings.EnableSsl
             };
 
